@@ -29,13 +29,26 @@ const allowedOrigins = new Set([
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+    // Allow non-browser requests (curl, server-to-server)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow configured origins, localhost, and Vercel preview/production domains
+    const isAllowed = allowedOrigins.has(origin)
+      || (process.env.CLIENT_URL && origin === process.env.CLIENT_URL)
+      || /\.vercel\.app$/.test(origin)
+      || process.env.ALLOW_ALL_ORIGINS === 'true';
+
+    if (isAllowed) {
       callback(null, true);
       return;
     }
 
     callback(new Error('Not allowed by CORS'));
-  }
+  },
+  credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
