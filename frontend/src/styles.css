@@ -33,11 +33,11 @@
   }
 
   h1 {
-    @apply mb-1.5 text-[28px] font-bold;
+    @apply mb-1.5 text-xl font-bold;
   }
 
   h2 {
-    @apply text-lg font-bold;
+    @apply text-base font-bold;
   }
 
   p {
@@ -127,7 +127,7 @@
   }
 
   .form label {
-    @apply grid gap-[7px] font-bold text-[#344054];
+    @apply grid gap-[7px] font-bold text-xs text-[#344054];
   }
 
   .primary {
@@ -159,11 +159,11 @@
   }
 
   .brand-school {
-    @apply text-sm font-black leading-tight text-ink;
+    @apply text-xs font-black leading-tight text-ink;
   }
 
   .brand-portal {
-    @apply text-[13px] font-extrabold text-muted;
+    @apply text-[10px] font-extrabold text-muted;
   }
 
   .sidebar nav {
@@ -202,15 +202,15 @@
   }
 
   .stat {
-    @apply rounded-lg border border-line bg-white p-[18px];
+    @apply rounded-lg border border-line bg-white p-4;
   }
 
   .stat span {
-    @apply font-bold text-muted;
+    @apply font-bold text-muted text-xs;
   }
 
   .stat strong {
-    @apply mt-2 block text-3xl font-extrabold;
+    @apply mt-2 block text-xl font-extrabold;
   }
 
   .panel {
@@ -389,7 +389,7 @@
   }
 
   .summary-grid strong {
-    @apply text-xl text-ink;
+    @apply text-base text-ink;
   }
 
   .remark {
@@ -610,11 +610,11 @@
     }
 
     h1 {
-      @apply text-2xl;
+      @apply text-lg;
     }
 
     .stat strong {
-      @apply text-2xl;
+      @apply text-lg;
     }
 
     .table-wrap td {
