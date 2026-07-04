@@ -1,0 +1,47 @@
+From b6bca252d6bf049456f86370df7e61b18e95d719 Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 14:21:22 +0100
+Subject: [PATCH 4/4] Backend: allow Vercel origins and runtime CLIENT_URL for
+ CORS; support ALLOW_ALL_ORIGINS env var\n\nCo-authored-by: Copilot
+ <223556219+Copilot@users.noreply.github.com>
+
+---
+ backend/src/server.js | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/backend/src/server.js b/backend/src/server.js
+index 37436bb..8862da8 100644
+--- a/backend/src/server.js
++++ b/backend/src/server.js
+@@ -29,13 +29,26 @@ const allowedOrigins = new Set([
+ 
+ app.use(cors({
+   origin(origin, callback) {
+-    if (!origin || allowedOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
++    // Allow non-browser requests (curl, server-to-server)
++    if (!origin) {
++      callback(null, true);
++      return;
++    }
++
++    // Allow configured origins, localhost, and Vercel preview/production domains
++    const isAllowed = allowedOrigins.has(origin)
++      || (process.env.CLIENT_URL && origin === process.env.CLIENT_URL)
++      || /\.vercel\.app$/.test(origin)
++      || process.env.ALLOW_ALL_ORIGINS === 'true';
++
++    if (isAllowed) {
+       callback(null, true);
+       return;
+     }
+ 
+     callback(new Error('Not allowed by CORS'));
+-  }
++  },
++  credentials: true
+ }));
+ app.use(express.json());
+ app.use(express.urlencoded({ extended: true }));
+-- 
+2.51.0.windows.2
+

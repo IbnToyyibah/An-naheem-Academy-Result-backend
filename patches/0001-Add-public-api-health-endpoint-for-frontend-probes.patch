@@ -1,0 +1,26 @@
+From ddd3c62200f1ab94f0bc80b381a32e3462587da5 Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 13:47:20 +0100
+Subject: [PATCH 1/4] Add public /api/health endpoint for frontend probes
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/src/server.js | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/backend/src/server.js b/backend/src/server.js
+index ae40993..37436bb 100644
+--- a/backend/src/server.js
++++ b/backend/src/server.js
+@@ -43,6 +43,8 @@ app.use(morgan('dev'));
+ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+ 
+ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
++// Public API health check (no auth required) — useful for frontend probes and uptime checks
++app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+ app.use('/api', (_req, res, next) => {
+   if (isDbConnected()) {
+     next();
+-- 
+2.51.0.windows.2
+

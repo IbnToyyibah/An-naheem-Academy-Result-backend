@@ -1,0 +1,49 @@
+From 6c2eadb59689cf035ce7ff427a977c6bf738445d Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 14:07:32 +0100
+Subject: [PATCH 3/4] Docs: point production backend to Render and clarify auth
+ header\n\nCo-authored-by: Copilot
+ <223556219+Copilot@users.noreply.github.com>
+
+---
+ README.md   | 2 +-
+ docs/api.md | 7 ++++---
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/README.md b/README.md
+index 608c09f..445456e 100644
+--- a/README.md
++++ b/README.md
+@@ -29,7 +29,7 @@ npm run dev
+ ```
+ 
+ - Frontend: `http://localhost:5173`
+-- Backend: `http://localhost:5000`
++- Backend (production): `https://an-naheem-academy-result-backend.onrender.com` — set VITE_API_URL and VITE_FILE_URL in Vercel to point to this URL
+ 
+ ## Default Admin
+ 
+diff --git a/docs/api.md b/docs/api.md
+index e51901d..04c6b85 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -1,8 +1,8 @@
+-# API Endpoint Documentation
++﻿# API Endpoint Documentation
+ 
+-Base URL: `http://localhost:5000/api`
++Base URL: `https://an-naheem-academy-result-backend.onrender.com`
+ 
+-Private endpoints require `Authorization: Bearer <token>`.
++Private endpoints require Authorization: Bearer <token>.
+ 
+ ## Authentication
+ 
+@@ -58,3 +58,4 @@ Private endpoints require `Authorization: Bearer <token>`.
+ ```
+ 
+ The API validates CA and exam limits, then calculates `total`, `grade`, and `remark`.
++
+-- 
+2.51.0.windows.2
+

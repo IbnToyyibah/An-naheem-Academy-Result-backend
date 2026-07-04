@@ -1,5 +1,6 @@
-﻿const API_URL = (import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
-const FILE_URL = (import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
+﻿const runtime = (typeof window !== 'undefined' && window.__APP_CONFIG__) ? window.__APP_CONFIG__ : {};
+const API_URL = (runtime.VITE_API_URL || import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
+const FILE_URL = (runtime.VITE_FILE_URL || import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
 
 export function assetUrl(path) {
   if (!path) return '';
@@ -95,3 +96,4 @@ export async function api(path, options = {}) {
 
   return data;
 }
+
