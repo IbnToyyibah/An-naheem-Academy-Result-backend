@@ -20,14 +20,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-const allowedOrigins = new Set([
-  process.env.CLIENT_URL || 'http://localhost:5173',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
-]);
-
-// CORS middleware - must be before routes
+// CORS middleware MUST be before helmet
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
@@ -39,13 +32,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Also apply cors package for additional compatibility
+// Apply cors package
 app.use(cors({
   origin: '*',
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Helmet AFTER CORS so it doesn't override headers
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
