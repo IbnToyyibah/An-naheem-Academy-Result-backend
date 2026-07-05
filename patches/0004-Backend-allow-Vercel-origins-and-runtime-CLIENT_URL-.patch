@@ -1,7 +1,7 @@
 From b6bca252d6bf049456f86370df7e61b18e95d719 Mon Sep 17 00:00:00 2001
 From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
 Date: Sat, 4 Jul 2026 14:21:22 +0100
-Subject: [PATCH 4/4] Backend: allow Vercel origins and runtime CLIENT_URL for
+Subject: [PATCH 4/7] Backend: allow Vercel origins and runtime CLIENT_URL for
  CORS; support ALLOW_ALL_ORIGINS env var\n\nCo-authored-by: Copilot
  <223556219+Copilot@users.noreply.github.com>
 

@@ -1,0 +1,33 @@
+From 446c6b981a746475ac17d61af1fb0346888350d1 Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 15:10:28 +0100
+Subject: [PATCH 7/7] Backend: add explicit OPTIONS handler to ensure CORS
+ headers in preflight responses
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/src/server.js | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/backend/src/server.js b/backend/src/server.js
+index 5171b8a..03a69c6 100644
+--- a/backend/src/server.js
++++ b/backend/src/server.js
+@@ -33,6 +33,14 @@ app.use(cors({
+   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+   allowedHeaders: ['Content-Type', 'Authorization']
+ }));
++
++// Explicit OPTIONS handler to ensure preflight responses include CORS headers
++app.options('*', (req, res) => {
++  res.header('Access-Control-Allow-Origin', '*');
++  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
++  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
++  res.sendStatus(204);
++});
+ app.use(express.json());
+ app.use(express.urlencoded({ extended: true }));
+ app.use(morgan('dev'));
+-- 
+2.51.0.windows.2
+

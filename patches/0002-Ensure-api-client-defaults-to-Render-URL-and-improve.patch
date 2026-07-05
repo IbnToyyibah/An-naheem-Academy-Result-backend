@@ -1,7 +1,7 @@
 From d9380a443e48a91e446806b9dd64e74a24a1a928 Mon Sep 17 00:00:00 2001
 From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
 Date: Sat, 4 Jul 2026 13:57:07 +0100
-Subject: [PATCH 2/4] Ensure api client defaults to Render URL and improves
+Subject: [PATCH 2/7] Ensure api client defaults to Render URL and improves
  error handling\n\nCo-authored-by: Copilot
  <223556219+Copilot@users.noreply.github.com>
 

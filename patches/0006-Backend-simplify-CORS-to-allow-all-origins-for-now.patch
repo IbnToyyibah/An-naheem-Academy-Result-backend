@@ -1,0 +1,51 @@
+From b173a1d908121e374090125a880a7577a7660567 Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 14:57:28 +0100
+Subject: [PATCH 6/7] Backend: simplify CORS to allow all origins for now
+
+Temporarily allow all origins (origin: '*') to unblock CORS preflight errors between Vercel frontend and Render backend. This will be tightened in production after testing.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/src/server.js | 25 ++++---------------------
+ 1 file changed, 4 insertions(+), 21 deletions(-)
+
+diff --git a/backend/src/server.js b/backend/src/server.js
+index 8862da8..5171b8a 100644
+--- a/backend/src/server.js
++++ b/backend/src/server.js
+@@ -28,27 +28,10 @@ const allowedOrigins = new Set([
+ ]);
+ 
+ app.use(cors({
+-  origin(origin, callback) {
+-    // Allow non-browser requests (curl, server-to-server)
+-    if (!origin) {
+-      callback(null, true);
+-      return;
+-    }
+-
+-    // Allow configured origins, localhost, and Vercel preview/production domains
+-    const isAllowed = allowedOrigins.has(origin)
+-      || (process.env.CLIENT_URL && origin === process.env.CLIENT_URL)
+-      || /\.vercel\.app$/.test(origin)
+-      || process.env.ALLOW_ALL_ORIGINS === 'true';
+-
+-    if (isAllowed) {
+-      callback(null, true);
+-      return;
+-    }
+-
+-    callback(new Error('Not allowed by CORS'));
+-  },
+-  credentials: true
++  origin: '*',
++  credentials: false,
++  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
++  allowedHeaders: ['Content-Type', 'Authorization']
+ }));
+ app.use(express.json());
+ app.use(express.urlencoded({ extended: true }));
+-- 
+2.51.0.windows.2
+

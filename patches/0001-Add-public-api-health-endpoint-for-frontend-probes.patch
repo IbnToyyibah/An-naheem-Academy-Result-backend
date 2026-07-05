@@ -1,7 +1,7 @@
 From ddd3c62200f1ab94f0bc80b381a32e3462587da5 Mon Sep 17 00:00:00 2001
 From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
 Date: Sat, 4 Jul 2026 13:47:20 +0100
-Subject: [PATCH 1/4] Add public /api/health endpoint for frontend probes
+Subject: [PATCH 1/7] Add public /api/health endpoint for frontend probes
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ---

@@ -1,0 +1,584 @@
+From b633e80988d8f73532d8e453ec31fd4ff148d2b7 Mon Sep 17 00:00:00 2001
+From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
+Date: Sat, 4 Jul 2026 14:42:41 +0100
+Subject: [PATCH 5/7] Fix: correct Authorization header and update Vercel
+ CLIENT_URL in CORS config
+
+- Fix Authorization header to use Bearer token template correctly
+- Update backend .env and .env.example with Vercel production domain (an-naheem-academy-result-seven.vercel.app)
+- Ensures CORS preflight allows requests from deployed frontend to Render backend
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+---
+ backend/.env.example                          |   2 +-
+ frontend/src/services/api.js                  |   6 +-
+ ...-health-endpoint-for-frontend-probes.patch |  26 ++
+ ...t-defaults-to-Render-URL-and-improve.patch | 382 ++++++++++++++++++
+ ...ction-backend-to-Render-and-clarify-.patch |  49 +++
+ ...rcel-origins-and-runtime-CLIENT_URL-.patch |  47 +++
+ 6 files changed, 509 insertions(+), 3 deletions(-)
+ create mode 100644 patches/0001-Add-public-api-health-endpoint-for-frontend-probes.patch
+ create mode 100644 patches/0002-Ensure-api-client-defaults-to-Render-URL-and-improve.patch
+ create mode 100644 patches/0003-Docs-point-production-backend-to-Render-and-clarify-.patch
+ create mode 100644 patches/0004-Backend-allow-Vercel-origins-and-runtime-CLIENT_URL-.patch
+
+diff --git a/backend/.env.example b/backend/.env.example
+index feb8cac..bed6fc1 100644
+--- a/backend/.env.example
++++ b/backend/.env.example
+@@ -1,5 +1,5 @@
+ PORT=5000
+-CLIENT_URL=http://localhost:5173
++CLIENT_URL=https://an-naheem-academy-result-seven.vercel.app
+ JWT_SECRET=eiASbrKoj26i88TldlJaWlxlOEog3fXXNLfiHVjsQmy
+ JWT_EXPIRES_IN=1d
+ MONGODB_URI=mongodb://olayiwolamujeeb_db_user:mujeeb450@ac-ztewsvw-shard-00-00.jbaw05g.mongodb.net:27017,ac-ztewsvw-shard-00-01.jbaw05g.mongodb.net:27017,ac-ztewsvw-shard-00-02.jbaw05g.mongodb.net:27017/junior_result_portal?ssl=true&replicaSet=atlas-7nn2zq-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0
+diff --git a/frontend/src/services/api.js b/frontend/src/services/api.js
+index 9745bdc..b2efc42 100644
+--- a/frontend/src/services/api.js
++++ b/frontend/src/services/api.js
+@@ -1,5 +1,6 @@
+-﻿const API_URL = (import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
+-const FILE_URL = (import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
++﻿const runtime = (typeof window !== 'undefined' && window.__APP_CONFIG__) ? window.__APP_CONFIG__ : {};
++const API_URL = (runtime.VITE_API_URL || import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
++const FILE_URL = (runtime.VITE_FILE_URL || import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
+ 
+ export function assetUrl(path) {
+   if (!path) return '';
+@@ -95,3 +96,4 @@ export async function api(path, options = {}) {
+ 
+   return data;
+ }
++
+diff --git a/patches/0001-Add-public-api-health-endpoint-for-frontend-probes.patch b/patches/0001-Add-public-api-health-endpoint-for-frontend-probes.patch
+new file mode 100644
+index 0000000..b42589c
+--- /dev/null
++++ b/patches/0001-Add-public-api-health-endpoint-for-frontend-probes.patch
+@@ -0,0 +1,26 @@
++From ddd3c62200f1ab94f0bc80b381a32e3462587da5 Mon Sep 17 00:00:00 2001
++From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
++Date: Sat, 4 Jul 2026 13:47:20 +0100
++Subject: [PATCH 1/4] Add public /api/health endpoint for frontend probes
++
++Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
++---
++ backend/src/server.js | 2 ++
++ 1 file changed, 2 insertions(+)
++
++diff --git a/backend/src/server.js b/backend/src/server.js
++index ae40993..37436bb 100644
++--- a/backend/src/server.js
+++++ b/backend/src/server.js
++@@ -43,6 +43,8 @@ app.use(morgan('dev'));
++ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
++ 
++ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+++// Public API health check (no auth required) — useful for frontend probes and uptime checks
+++app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
++ app.use('/api', (_req, res, next) => {
++   if (isDbConnected()) {
++     next();
++-- 
++2.51.0.windows.2
++
+diff --git a/patches/0002-Ensure-api-client-defaults-to-Render-URL-and-improve.patch b/patches/0002-Ensure-api-client-defaults-to-Render-URL-and-improve.patch
+new file mode 100644
+index 0000000..19a9efe
+--- /dev/null
++++ b/patches/0002-Ensure-api-client-defaults-to-Render-URL-and-improve.patch
+@@ -0,0 +1,382 @@
++From d9380a443e48a91e446806b9dd64e74a24a1a928 Mon Sep 17 00:00:00 2001
++From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
++Date: Sat, 4 Jul 2026 13:57:07 +0100
++Subject: [PATCH 2/4] Ensure api client defaults to Render URL and improves
++ error handling\n\nCo-authored-by: Copilot
++ <223556219+Copilot@users.noreply.github.com>
++
++---
++ frontend/package.json              |  2 +
++ frontend/src/components/Layout.jsx | 69 ++++++++++++++++++++++------
++ frontend/src/services/api.js       | 73 ++++++++++++++++++++++--------
++ frontend/src/styles.css            | 22 ++++-----
++ package-lock.json                  | 16 ++++---
++ 5 files changed, 132 insertions(+), 50 deletions(-)
++
++diff --git a/frontend/package.json b/frontend/package.json
++index 2b8b3ea..b7bdc9a 100644
++--- a/frontend/package.json
+++++ b/frontend/package.json
++@@ -9,9 +9,11 @@
++   },
++   "dependencies": {
++     "@vitejs/plugin-react": "^4.3.4",
+++    "framer-motion": "^12.42.2",
++     "lucide-react": "^0.468.0",
++     "react": "^19.0.0",
++     "react-dom": "^19.0.0",
+++    "react-icons": "^5.7.0",
++     "react-router-dom": "^7.1.1",
++     "vite": "^6.0.7"
++   },
++diff --git a/frontend/src/components/Layout.jsx b/frontend/src/components/Layout.jsx
++index 37f121d..b6f6c06 100644
++--- a/frontend/src/components/Layout.jsx
+++++ b/frontend/src/components/Layout.jsx
++@@ -1,5 +1,6 @@
+++import { useState } from 'react';
++ import { Link, NavLink, Outlet } from 'react-router-dom';
++-import { BookOpen, LayoutDashboard, LogOut, Printer, Settings, UserRound, LockKeyhole } from 'lucide-react';
+++import { BookOpen, LayoutDashboard, LogOut, Printer, Settings, UserRound, LockKeyhole, Menu, X } from 'lucide-react';
++ import { useAuth } from '../context/AuthContext.jsx';
++ 
++ const adminLinks = [
++@@ -18,36 +19,76 @@ const parentLinks = [
++ export default function Layout({ role }) {
++   const { logout } = useAuth();
++   const links = role === 'admin' ? adminLinks : parentLinks;
+++  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+++  
++   const linkClass = ({ isActive }) =>
++     [
++-      'flex items-center gap-2.5 rounded-[7px] px-3 py-[11px] font-bold text-[#344054] transition hover:bg-primary-soft hover:text-primary-dark',
+++      'flex items-center gap-2.5 rounded-[7px] px-3 py-[11px] font-bold text-[#344054] text-sm transition hover:bg-primary-soft hover:text-primary-dark',
++       isActive ? 'bg-primary-soft text-primary-dark' : ''
++     ].join(' ');
++ 
+++  const handleNavClick = () => {
+++    setMobileMenuOpen(false);
+++  };
+++
++   return (
++     <div className="grid min-h-screen min-w-0 grid-cols-[260px_1fr] max-[760px]:grid-cols-1">
++-      <aside className="sticky top-0 flex h-screen flex-col gap-[22px] border-r border-line bg-white p-[22px] max-[760px]:static max-[760px]:h-auto max-[760px]:p-4">
++-        <Link className="flex flex-col items-center justify-center gap-1.5 px-0 pb-3 pt-0.5 text-center" to={role === 'admin' ? '/admin' : '/parent'}>
++-          <span className="mb-1 grid h-[116px] w-[116px] place-items-center overflow-hidden">
+++      {/* Mobile Menu Button */}
+++      <button
+++        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+++        className="hidden max-[760px]:flex fixed top-4 left-4 z-50 items-center justify-center p-2 rounded-[7px] bg-primary text-white hover:bg-primary-dark transition"
+++      >
+++        {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+++      </button>
+++
+++      {/* Overlay for mobile menu */}
+++      {mobileMenuOpen && (
+++        <div
+++          className="hidden max-[760px]:block fixed inset-0 bg-black/50 z-40"
+++          onClick={() => setMobileMenuOpen(false)}
+++        />
+++      )}
+++
+++      <aside className={`sticky top-0 flex h-screen flex-col gap-[18px] border-r border-line bg-white p-[18px] max-[760px]:static max-[760px]:h-auto max-[760px]:p-4 max-[760px]:fixed max-[760px]:left-0 max-[760px]:top-0 max-[760px]:w-64 max-[760px]:z-40 max-[760px]:transform max-[760px]:transition-transform max-[760px]:duration-300 ${
+++        mobileMenuOpen ? 'max-[760px]:translate-x-0' : 'max-[760px]:-translate-x-full'
+++      }`}>
+++        <Link 
+++          className="flex flex-col items-center justify-center gap-1 px-0 pb-2 pt-0 text-center" 
+++          to={role === 'admin' ? '/admin' : '/parent'}
+++          onClick={handleNavClick}
+++        >
+++          <span className="mb-1 grid h-20 w-20 place-items-center overflow-hidden">
++             <img className="block h-full w-full object-contain" src="/Annaheem.jpeg.png" alt="Annaheem Academy logo" />
++           </span>
++-          <span className="text-sm font-black leading-tight text-ink">AN-NAHEEM ACADEMY</span>
++-          <span className="text-[13px] font-extrabold text-muted">School Results</span>
+++          <span className="text-xs font-black leading-tight text-ink">AN-NAHEEM ACADEMY</span>
+++          <span className="text-[11px] font-extrabold text-muted">School Results</span>
++         </Link>
++-        <nav className="grid gap-2 max-[760px]:grid-cols-2 max-[520px]:grid-cols-1">
+++        <nav className="grid gap-2 max-[760px]:grid-cols-1">
++           {links.map(([label, to, Icon]) => (
++-            <NavLink className={linkClass} key={to} to={to} end={to === '/admin' || to === '/parent'}>
++-              <Icon size={18} />
++-              <span>{label}</span>
+++            <NavLink 
+++              className={linkClass} 
+++              key={to} 
+++              to={to} 
+++              end={to === '/admin' || to === '/parent'}
+++              onClick={handleNavClick}
+++            >
+++              <Icon size={16} />
+++              <span className="text-sm">{label}</span>
++             </NavLink>
++           ))}
++         </nav>
++-        <button className="mt-auto flex w-full items-center gap-2.5 rounded-[7px] border-0 bg-transparent px-3 py-[11px] font-bold text-[#344054] transition hover:bg-primary-soft hover:text-primary-dark" onClick={logout}>
++-          <LogOut size={18} />
+++        <button 
+++          className="mt-auto flex w-full items-center gap-2.5 rounded-[7px] border-0 bg-transparent px-3 py-[11px] font-bold text-[#344054] text-sm transition hover:bg-primary-soft hover:text-primary-dark" 
+++          onClick={() => {
+++            logout();
+++            handleNavClick();
+++          }}
+++        >
+++          <LogOut size={16} />
++           <span>Logout</span>
++         </button>
++       </aside>
++-      <main className="min-w-0 overflow-x-hidden p-7 max-[760px]:p-4 max-[520px]:p-3">
+++      <main className="min-w-0 overflow-x-hidden p-6 max-[760px]:p-3 max-[520px]:p-2">
++         <Outlet />
++       </main>
++     </div>
++diff --git a/frontend/src/services/api.js b/frontend/src/services/api.js
++index b396392..9745bdc 100644
++--- a/frontend/src/services/api.js
+++++ b/frontend/src/services/api.js
++@@ -1,4 +1,4 @@
++-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
+++﻿const API_URL = (import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
++ const FILE_URL = (import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
++ 
++ export function assetUrl(path) {
++@@ -6,7 +6,6 @@ export function assetUrl(path) {
++   if (/^https?:\/\//i.test(path)) return path;
++   if (FILE_URL) return `${FILE_URL}${path}`;
++ 
++-  // Ensure the path starts with a slash to avoid malformed URLs
++   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
++   try {
++     return `${new URL(API_URL, window.location.origin).origin}${normalizedPath}`;
++@@ -17,44 +16,82 @@ export function assetUrl(path) {
++ 
++ function redirectToLogin(role) {
++   const target = role === 'parent' ? '/#/parent-login' : '/#/admin-login';
++-  if (window.location.hash !== target) {
++-    window.location.assign(target);
+++  if (window.location.hash !== target) window.location.assign(target);
+++}
+++
+++async function safeParseJson(response) {
+++  try {
+++    return await response.json();
+++  } catch {
+++    return null;
++   }
++ }
++ 
++ export async function api(path, options = {}) {
++   const shouldRedirectOnAuthError = options.authRedirect !== false;
++-  const { authRedirect: _authRedirect, ...fetchOptions } = options;
+++  const { authRedirect: _authRedirect, timeout: _timeout, ...fetchOptions } = options;
++   const token = localStorage.getItem('token');
++   const headers = fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
++   if (token) headers.Authorization = `Bearer ${token}`;
++ 
++-  let response;
++-  try {
++-    response = await fetch(`${API_URL}${path}`, {
+++  const url = `${API_URL}${path}`;
+++  const requestTimeout = typeof _timeout === 'number' ? _timeout : 15000;
+++
+++  const makeFetch = async (signal) => {
+++    return fetch(url, {
++       ...fetchOptions,
++-      headers: { ...headers, ...fetchOptions.headers }
+++      headers: { ...headers, ...fetchOptions.headers },
+++      signal
++     });
++-  } catch {
++-    throw new Error('Cannot reach the server. Make sure the backend is running.');
+++  };
+++
+++  // Helper to perform fetch with AbortController and timeout
+++  const fetchWithTimeout = async () => {
+++    const controller = new AbortController();
+++    const timer = setTimeout(() => controller.abort(), requestTimeout);
+++    try {
+++      const resp = await makeFetch(controller.signal);
+++      clearTimeout(timer);
+++      return resp;
+++    } catch (err) {
+++      clearTimeout(timer);
+++      throw err;
+++    }
+++  };
+++
+++  let response;
+++  try {
+++    response = await fetchWithTimeout();
+++  } catch (err) {
+++    // Retry once for transient failures (not for explicit aborts)
+++    if (err && err.name === 'AbortError') {
+++      throw new Error(`Request to ${url} aborted after ${requestTimeout}ms`);
+++    }
+++    try {
+++      await new Promise(r => setTimeout(r, 500));
+++      response = await fetchWithTimeout();
+++    } catch (err2) {
+++      const msg = err2 && err2.message ? err2.message : 'Make sure the backend is running and CORS is configured.';
+++      throw new Error(`Cannot reach the server at ${API_URL}. ${msg}`);
+++    }
++   }
++ 
++-  const data = await response.json().catch(() => ({}));
+++  const data = await safeParseJson(response) || {};
+++
++   if (!response.ok) {
++     if (shouldRedirectOnAuthError && (response.status === 401 || response.status === 403)) {
++       localStorage.removeItem('token');
++       localStorage.removeItem('user');
++       window.dispatchEvent(new Event('auth:logout'));
++-      if (path.startsWith('/parent')) {
++-        redirectToLogin('parent');
++-      } else if (path.startsWith('/admin')) {
++-        redirectToLogin('admin');
++-      }
+++      if (path.startsWith('/parent')) redirectToLogin('parent');
+++      else if (path.startsWith('/admin')) redirectToLogin('admin');
++     }
++ 
++-    const error = new Error(data.message || 'Request failed');
+++    const message = data && data.message ? data.message : response.statusText || 'Request failed';
+++    const error = new Error(message);
++     error.status = response.status;
++     throw error;
++   }
+++
++   return data;
++ }
++diff --git a/frontend/src/styles.css b/frontend/src/styles.css
++index db045c5..15c2617 100644
++--- a/frontend/src/styles.css
+++++ b/frontend/src/styles.css
++@@ -33,11 +33,11 @@
++   }
++ 
++   h1 {
++-    @apply mb-1.5 text-[28px] font-bold;
+++    @apply mb-1.5 text-xl font-bold;
++   }
++ 
++   h2 {
++-    @apply text-lg font-bold;
+++    @apply text-base font-bold;
++   }
++ 
++   p {
++@@ -127,7 +127,7 @@
++   }
++ 
++   .form label {
++-    @apply grid gap-[7px] font-bold text-[#344054];
+++    @apply grid gap-[7px] font-bold text-xs text-[#344054];
++   }
++ 
++   .primary {
++@@ -159,11 +159,11 @@
++   }
++ 
++   .brand-school {
++-    @apply text-sm font-black leading-tight text-ink;
+++    @apply text-xs font-black leading-tight text-ink;
++   }
++ 
++   .brand-portal {
++-    @apply text-[13px] font-extrabold text-muted;
+++    @apply text-[10px] font-extrabold text-muted;
++   }
++ 
++   .sidebar nav {
++@@ -202,15 +202,15 @@
++   }
++ 
++   .stat {
++-    @apply rounded-lg border border-line bg-white p-[18px];
+++    @apply rounded-lg border border-line bg-white p-4;
++   }
++ 
++   .stat span {
++-    @apply font-bold text-muted;
+++    @apply font-bold text-muted text-xs;
++   }
++ 
++   .stat strong {
++-    @apply mt-2 block text-3xl font-extrabold;
+++    @apply mt-2 block text-xl font-extrabold;
++   }
++ 
++   .panel {
++@@ -389,7 +389,7 @@
++   }
++ 
++   .summary-grid strong {
++-    @apply text-xl text-ink;
+++    @apply text-base text-ink;
++   }
++ 
++   .remark {
++@@ -610,11 +610,11 @@
++     }
++ 
++     h1 {
++-      @apply text-2xl;
+++      @apply text-lg;
++     }
++ 
++     .stat strong {
++-      @apply text-2xl;
+++      @apply text-lg;
++     }
++ 
++     .table-wrap td {
++diff --git a/package-lock.json b/package-lock.json
++index 1e080d3..b866664 100644
++--- a/package-lock.json
+++++ b/package-lock.json
++@@ -42,9 +42,11 @@
++       "version": "1.0.0",
++       "dependencies": {
++         "@vitejs/plugin-react": "^4.3.4",
+++        "framer-motion": "^12.42.2",
++         "lucide-react": "^0.468.0",
++         "react": "^19.0.0",
++         "react-dom": "^19.0.0",
+++        "react-icons": "^5.7.0",
++         "react-router-dom": "^7.1.1",
++         "vite": "^6.0.7"
++       },
++@@ -2126,12 +2128,12 @@
++       }
++     },
++     "node_modules/framer-motion": {
++-      "version": "12.42.1",
++-      "resolved": "https://registry.npmjs.org/framer-motion/-/framer-motion-12.42.1.tgz",
++-      "integrity": "sha512-Q2rHK14w8lavWk3MiF1wihcV1sCVsSYrRSaoqJ5eChG7CUNTKxDUgoMesiUSmMBjFpBRPWGrLvzymRrm0jnwFA==",
+++      "version": "12.42.2",
+++      "resolved": "https://registry.npmjs.org/framer-motion/-/framer-motion-12.42.2.tgz",
+++      "integrity": "sha512-5XY9luDiu0oHfHBjpDthFMh0ES+122w6p/papSJBweMkO8Sn+PW2QaEgRblQBpWFnuvZS5qvarpt/hO2pjGmnw==",
++       "license": "MIT",
++       "dependencies": {
++-        "motion-dom": "^12.42.1",
+++        "motion-dom": "^12.42.2",
++         "motion-utils": "^12.39.0",
++         "tslib": "^2.4.0"
++       },
++@@ -2937,9 +2939,9 @@
++       "license": "MIT"
++     },
++     "node_modules/motion-dom": {
++-      "version": "12.42.1",
++-      "resolved": "https://registry.npmjs.org/motion-dom/-/motion-dom-12.42.1.tgz",
++-      "integrity": "sha512-dnBr0vtpJLvTVm+SIi8o7yh8jD57Bv7++nkkoeq85QW+QJqM+RIIoyvu5LyZ186dILUMHzkxv5sQveTxuOcOBw==",
+++      "version": "12.42.2",
+++      "resolved": "https://registry.npmjs.org/motion-dom/-/motion-dom-12.42.2.tgz",
+++      "integrity": "sha512-5gIMWLp/PycBtJRJWRgjxke5n8dlvkSn2DrYW+tr3XcqAZY1xZh6BJyooJXCM8wdfM7wfMjkBJNLge1CKPUIRA==",
++       "license": "MIT",
++       "dependencies": {
++         "motion-utils": "^12.39.0"
++-- 
++2.51.0.windows.2
++
+diff --git a/patches/0003-Docs-point-production-backend-to-Render-and-clarify-.patch b/patches/0003-Docs-point-production-backend-to-Render-and-clarify-.patch
+new file mode 100644
+index 0000000..852fa8c
+--- /dev/null
++++ b/patches/0003-Docs-point-production-backend-to-Render-and-clarify-.patch
+@@ -0,0 +1,49 @@
++From 6c2eadb59689cf035ce7ff427a977c6bf738445d Mon Sep 17 00:00:00 2001
++From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
++Date: Sat, 4 Jul 2026 14:07:32 +0100
++Subject: [PATCH 3/4] Docs: point production backend to Render and clarify auth
++ header\n\nCo-authored-by: Copilot
++ <223556219+Copilot@users.noreply.github.com>
++
++---
++ README.md   | 2 +-
++ docs/api.md | 7 ++++---
++ 2 files changed, 5 insertions(+), 4 deletions(-)
++
++diff --git a/README.md b/README.md
++index 608c09f..445456e 100644
++--- a/README.md
+++++ b/README.md
++@@ -29,7 +29,7 @@ npm run dev
++ ```
++ 
++ - Frontend: `http://localhost:5173`
++-- Backend: `http://localhost:5000`
+++- Backend (production): `https://an-naheem-academy-result-backend.onrender.com` — set VITE_API_URL and VITE_FILE_URL in Vercel to point to this URL
++ 
++ ## Default Admin
++ 
++diff --git a/docs/api.md b/docs/api.md
++index e51901d..04c6b85 100644
++--- a/docs/api.md
+++++ b/docs/api.md
++@@ -1,8 +1,8 @@
++-# API Endpoint Documentation
+++﻿# API Endpoint Documentation
++ 
++-Base URL: `http://localhost:5000/api`
+++Base URL: `https://an-naheem-academy-result-backend.onrender.com`
++ 
++-Private endpoints require `Authorization: Bearer <token>`.
+++Private endpoints require Authorization: Bearer <token>.
++ 
++ ## Authentication
++ 
++@@ -58,3 +58,4 @@ Private endpoints require `Authorization: Bearer <token>`.
++ ```
++ 
++ The API validates CA and exam limits, then calculates `total`, `grade`, and `remark`.
+++
++-- 
++2.51.0.windows.2
++
+diff --git a/patches/0004-Backend-allow-Vercel-origins-and-runtime-CLIENT_URL-.patch b/patches/0004-Backend-allow-Vercel-origins-and-runtime-CLIENT_URL-.patch
+new file mode 100644
+index 0000000..84c1a22
+--- /dev/null
++++ b/patches/0004-Backend-allow-Vercel-origins-and-runtime-CLIENT_URL-.patch
+@@ -0,0 +1,47 @@
++From b6bca252d6bf049456f86370df7e61b18e95d719 Mon Sep 17 00:00:00 2001
++From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
++Date: Sat, 4 Jul 2026 14:21:22 +0100
++Subject: [PATCH 4/4] Backend: allow Vercel origins and runtime CLIENT_URL for
++ CORS; support ALLOW_ALL_ORIGINS env var\n\nCo-authored-by: Copilot
++ <223556219+Copilot@users.noreply.github.com>
++
++---
++ backend/src/server.js | 17 +++++++++++++++--
++ 1 file changed, 15 insertions(+), 2 deletions(-)
++
++diff --git a/backend/src/server.js b/backend/src/server.js
++index 37436bb..8862da8 100644
++--- a/backend/src/server.js
+++++ b/backend/src/server.js
++@@ -29,13 +29,26 @@ const allowedOrigins = new Set([
++ 
++ app.use(cors({
++   origin(origin, callback) {
++-    if (!origin || allowedOrigins.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+++    // Allow non-browser requests (curl, server-to-server)
+++    if (!origin) {
+++      callback(null, true);
+++      return;
+++    }
+++
+++    // Allow configured origins, localhost, and Vercel preview/production domains
+++    const isAllowed = allowedOrigins.has(origin)
+++      || (process.env.CLIENT_URL && origin === process.env.CLIENT_URL)
+++      || /\.vercel\.app$/.test(origin)
+++      || process.env.ALLOW_ALL_ORIGINS === 'true';
+++
+++    if (isAllowed) {
++       callback(null, true);
++       return;
++     }
++ 
++     callback(new Error('Not allowed by CORS'));
++-  }
+++  },
+++  credentials: true
++ }));
++ app.use(express.json());
++ app.use(express.urlencoded({ extended: true }));
++-- 
++2.51.0.windows.2
++
+-- 
+2.51.0.windows.2
+

@@ -1,7 +1,7 @@
 From 6c2eadb59689cf035ce7ff427a977c6bf738445d Mon Sep 17 00:00:00 2001
 From: IbnToyyibah <olayiwolamujeeb95@gmail.com>
 Date: Sat, 4 Jul 2026 14:07:32 +0100
-Subject: [PATCH 3/4] Docs: point production backend to Render and clarify auth
+Subject: [PATCH 3/7] Docs: point production backend to Render and clarify auth
  header\n\nCo-authored-by: Copilot
  <223556219+Copilot@users.noreply.github.com>
 

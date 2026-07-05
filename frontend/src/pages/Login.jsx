@@ -35,7 +35,7 @@ export default function Login({ role }) {
           <GraduationCap className="text-primary" size={40} />
           <div>
             <h1 className="text-xl font-bold text-black">{isAdmin ? 'Admin Login' : 'Parent Login'}</h1>
-            <p className="text-2xl font-extrabold text-blue-900">Annaheem Academy</p>
+            <p className="text-2xl font-extrabold text-blue-900">AN-NAHEEM ACADEMY</p>
           </div>
         </div>
 
