@@ -43,6 +43,8 @@ app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+// Public API health check (no auth required) — useful for frontend probes and uptime checks
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api', (_req, res, next) => {
   if (isDbConnected()) {
     next();
