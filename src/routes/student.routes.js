@@ -8,6 +8,7 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { uploadPassport } from '../middleware/upload.js';
 import { logActivity } from '../utils/activity.js';
 import { isValidAdmissionNumber, normalizeAdmissionNumber } from '../utils/admission.js';
+import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
 
 const router = Router();
 router.use(authenticate, requireRole('admin'));
@@ -15,7 +16,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 
-const passportPath = (file) => (file ? `/uploads/${file.filename}` : null);
 const DEFAULT_PARENT_PASSWORD = '0823';
 
 function validateAdmissionNumber(value) {
@@ -78,6 +78,12 @@ router.post('/', uploadPassport.single('passport'), async (req, res, next) => {
       return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a' });
     }
 
+    let passportUrl = null;
+    if (req.file) {
+      const uploadResult = await uploadToCloudinary(req.file.buffer);
+      passportUrl = uploadResult.secure_url;
+    }
+
     const password = await bcrypt.hash(DEFAULT_PARENT_PASSWORD, 12);
     const parent = await Parent.create({
       name: '',
@@ -93,7 +99,7 @@ router.post('/', uploadPassport.single('passport'), async (req, res, next) => {
       date_of_birth: body.date_of_birth || null,
       class_id: body.class_id,
       parent_id: parent.id,
-      passport_path: passportPath(req.file)
+      passport_path: passportUrl
     });
     await logActivity('Admin', `Added student ${admissionNumber}`);
     res.status(201).json({ id: student.id, message: 'Student created' });
@@ -113,7 +119,17 @@ router.put('/:id', uploadPassport.single('passport'), async (req, res, next) => 
       return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a' });
     }
 
-    const nextPassport = passportPath(req.file) || existing.passport_path;
+    let nextPassport = existing.passport_path;
+    if (req.file) {
+      if (existing.passport_path) {
+        await deleteFromCloudinary(existing.passport_path).catch((err) => {
+          console.error('Failed to delete old passport from Cloudinary:', err);
+        });
+      }
+      const uploadResult = await uploadToCloudinary(req.file.buffer);
+      nextPassport = uploadResult.secure_url;
+    }
+
     await Student.findByIdAndUpdate(req.params.id, {
       admission_number: admissionNumber,
       first_name: body.first_name,
@@ -134,7 +150,13 @@ router.delete('/:id/passport', async (req, res, next) => {
   try {
     const student = await Student.findById(req.params.id);
     if (student?.passport_path) {
-      await fs.unlink(path.join(uploadsDir, path.basename(student.passport_path))).catch(() => { });
+      if (student.passport_path.includes('res.cloudinary.com')) {
+        await deleteFromCloudinary(student.passport_path).catch((err) => {
+          console.error('Failed to delete passport from Cloudinary:', err);
+        });
+      } else {
+        await fs.unlink(path.join(uploadsDir, path.basename(student.passport_path))).catch(() => { });
+      }
       student.passport_path = null;
       await student.save();
     }
@@ -147,8 +169,19 @@ router.delete('/:id/passport', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const student = await Student.findByIdAndDelete(req.params.id);
-    if (student?.parent_id) await Parent.findByIdAndDelete(student.parent_id);
-    await logActivity('Admin', 'Deleted student record');
+    if (student) {
+      if (student.passport_path) {
+        if (student.passport_path.includes('res.cloudinary.com')) {
+          await deleteFromCloudinary(student.passport_path).catch((err) => {
+            console.error('Failed to delete passport from Cloudinary:', err);
+          });
+        } else {
+          await fs.unlink(path.join(uploadsDir, path.basename(student.passport_path))).catch(() => { });
+        }
+      }
+      if (student.parent_id) await Parent.findByIdAndDelete(student.parent_id);
+      await logActivity('Admin', 'Deleted student record');
+    }
     res.json({ message: 'Student deleted' });
   } catch (error) {
     next(error);
