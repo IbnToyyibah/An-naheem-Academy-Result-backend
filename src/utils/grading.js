@@ -36,14 +36,13 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
     {
       $group: {
         _id: '$student_id',
-        averageScore: { $avg: '$total' },
         totalScore: { $sum: '$total' }
       }
     },
     {
       $sort: {
-        averageScore: -1,
-        totalScore: -1
+        totalScore: -1,
+        _id: 1
       }
     }
   ]);
@@ -52,14 +51,12 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
 
   let rank = 1;
   let currentPosition = 1;
-  let lastAverage = null;
   let lastTotal = null;
 
   for (const row of results) {
-    const averageScore = Number(row.averageScore.toFixed(2));
     const totalScore = Number(row.totalScore);
 
-    if (lastAverage !== null && (averageScore !== lastAverage || totalScore !== lastTotal)) {
+    if (lastTotal !== null && totalScore !== lastTotal) {
       rank = currentPosition;
     }
 
@@ -67,7 +64,6 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
       return rank;
     }
 
-    lastAverage = averageScore;
     lastTotal = totalScore;
     currentPosition += 1;
   }
