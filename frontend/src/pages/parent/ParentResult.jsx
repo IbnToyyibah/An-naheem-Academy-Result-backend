@@ -98,12 +98,11 @@ export default function ParentResult() {
 
   return (
     <motion.div
-      className="relative mx-auto max-w-6xl overflow-hidden rounded-[28px] border border-line bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfe_100%)] shadow-[0_18px_50px_rgba(15,23,42,0.08)] max-[760px]:rounded-[22px]"
+      className="relative mx-auto max-w-6xl overflow-hidden rounded-[28px] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] max-[760px]:rounded-[22px]"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div className="absolute inset-x-0 top-0 h-40 bg-blue-800" />
       <div className="relative z-[1] p-4 sm:p-6">
         <div className="print-header hidden border-b border-slate-200 pb-3 mb-4">
           <div className="flex items-center justify-between gap-4">
@@ -145,27 +144,27 @@ export default function ParentResult() {
         </div>
 
         <header className="no-print mb-4">
-          <div className="overflow-hidden rounded-[24px] border-0 bg-white">
+          <div className="overflow-hidden rounded-[24px] bg-slate-50">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-4">
-                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-                  <ClipboardList size={26} className="text-black" />
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-900/5 ring-1 ring-slate-200">
+                  <ClipboardList size={26} className="text-slate-900" />
                 </div>
                 <div>
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-black">Academic Result</p>
-                  <h1 className="m-0 text-2xl font-black tracking-tight text-white max-[520px]:text-xl">View Result</h1>
-                  <p className="mt-1 max-w-2xl text-sm text-black">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Academic Result</p>
+                  <h1 className="m-0 text-2xl font-black tracking-tight text-slate-900 max-[520px]:text-xl">View Result</h1>
+                  <p className="mt-1 max-w-2xl text-sm text-slate-600">
                     A cleaner, printable report sheet for the selected student, built to stay compact and readable.
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold text-black backdrop-blur transition hover:bg-white/15" onClick={() => window.print()}>
+                <button className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 backdrop-blur transition hover:bg-slate-100" onClick={() => window.print()}>
                   <Printer size={13} /> Print
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-black/20 bg-white/10 px-4 py-2 text-xs font-bold text-black backdrop-blur transition hover:bg-white/15"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 backdrop-blur transition hover:bg-slate-100"
                   onClick={() => window.location.reload()}
                 >
                   <RefreshCcw size={13} /> Refresh
@@ -175,7 +174,7 @@ export default function ParentResult() {
           </div>
         </header>
 
-        <section className="no-print mb-4 overflow-hidden rounded-[24px] border border-line bg-white/90 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur">
+        <section className="no-print mb-4 overflow-hidden rounded-[24px] bg-white/90 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur">
           <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
             <div className="flex items-center gap-3">
               {profile?.passport_path ? (
@@ -231,9 +230,7 @@ export default function ParentResult() {
             </div>
           </div>
 
-          {selectorsDisabled && (
-            <p className="mt-3 text-xs font-semibold text-slate-500">Session and term are locked by the school for this result.</p>
-          )}
+          {selectorsDisabled && <p className="mt-3 text-xs font-semibold text-slate-500">Session and term are locked by the school for this result.</p>}
         </section>
 
         <section className="overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
