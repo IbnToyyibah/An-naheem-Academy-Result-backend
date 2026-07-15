@@ -49,7 +49,7 @@ export default function ParentDashboard() {
     <section className="space-y-4">
       <header className="space-y-1.5">
         <h1 className="text-2xl max-[760px]:text-xl font-bold text-slate-900">Parent Dashboard</h1>
-        <p className="text-xs text-slate-500">Access your child’s profile, class, and exam result information.</p>
+        <p className="text-xs text-slate-500">Access your child's profile, class, and exam result information.</p>
       </header>
 
       {loading ? (

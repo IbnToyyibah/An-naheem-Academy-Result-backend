@@ -6,7 +6,7 @@ A full-stack result management portal for Junior Secondary School administrators
 
 - Admin and parent JWT authentication.
 - Student, class, subject, session, and term management.
-- Passport upload with JPG, JPEG, and PNG validation.
+- Passport upload with JPG, JPEG, and PNG validation stored in Cloudinary.
 - Result entry for thirteen subjects with automatic total, grade, and remark calculation.
 - Parent dashboard for profile, result viewing, password change, and printing.
 - MySQL schema with relationships and seed data.
@@ -16,13 +16,14 @@ A full-stack result management portal for Junior Secondary School administrators
 
 1. Create a MySQL database and import `database/schema.sql`.
 2. Copy `backend/.env.example` to `backend/.env` and update the database credentials.
-3. Install dependencies:
+3. Set your Cloudinary credentials in `backend/.env` so passport images are uploaded to Cloudinary instead of the local server disk.
+4. Install dependencies:
 
 ```bash
 npm run install:all
 ```
 
-4. Start both apps:
+5. Start both apps:
 
 ```bash
 npm run dev
@@ -49,6 +50,6 @@ Parent login uses the student's admission number as the ID and `0823` as the def
 ```text
 backend/     Express API, MySQL repositories, authentication, uploads
 frontend/    React app, pages, routes, context, services, responsive UI
-database/    MySQL schema and relationships
+database/    Mongodb
 docs/        API endpoint documentation
 ```

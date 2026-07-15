@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save } from 'lucide-react';
+import { Edit3, Save } from 'lucide-react';
 import { api } from '../../services/api.js';
 
 const panel = 'min-w-0 rounded-lg border border-line bg-panel p-[18px] shadow-panel max-[520px]:p-3.5';
@@ -11,19 +11,68 @@ export default function Results() {
   const [filters, setFilters] = useState({ studentId: '', sessionId: '', termId: '', attendance: '', principalRemark: '' });
   const [scores, setScores] = useState({});
   const [message, setMessage] = useState('');
+  const [loadingSavedResults, setLoadingSavedResults] = useState(false);
+  const [hasSavedResults, setHasSavedResults] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    Promise.all([api('/students'), api('/subjects'), api('/sessions'), api('/terms')]).then(([students, subjects, sessions, terms]) => {
-      setLookups({ students, subjects, sessions, terms });
-      setFilters({
-        studentId: students[0]?.id || '',
-        sessionId: sessions.find((s) => s.is_current)?.id || sessions[0]?.id || '',
-        termId: terms[0]?.id || '',
-        attendance: '',
-        principalRemark: ''
+    Promise.all([api('/students'), api('/subjects'), api('/sessions'), api('/terms')])
+      .then(([students, subjects, sessions, terms]) => {
+        setLookups({ students, subjects, sessions, terms });
+        setFilters({
+          studentId: students[0]?.id || '',
+          sessionId: sessions.find((s) => s.is_current)?.id || sessions[0]?.id || '',
+          termId: terms[0]?.id || '',
+          attendance: '',
+          principalRemark: ''
+        });
+      })
+      .catch((err) => {
+        setMessage(err.message || 'Unable to load students, subjects, sessions, and terms.');
       });
-    });
   }, []);
+
+  useEffect(() => {
+    const loadSavedResults = async () => {
+      if (!filters.studentId || !filters.sessionId || !filters.termId || !lookups.subjects.length) {
+        return;
+      }
+
+      setLoadingSavedResults(true);
+      try {
+        const rows = await api(`/results/student/${filters.studentId}?sessionId=${filters.sessionId}&termId=${filters.termId}`);
+        const nextScores = {};
+
+        rows.forEach((row) => {
+          const subjectId = row.subject_id?.id || row.subject_id || lookups.subjects.find((subject) => subject.subject_name === row.subject_name)?.id;
+          if (!subjectId) return;
+
+          nextScores[subjectId] = {
+            firstCa: row.first_ca ?? '',
+            secondCa: row.second_ca ?? '',
+            exam: row.exam ?? ''
+          };
+        });
+
+        setScores(nextScores);
+        setHasSavedResults(rows.length > 0);
+        setFilters((current) => ({
+          ...current,
+          attendance: rows[0]?.attendance ?? '',
+          principalRemark: rows[0]?.principal_remark ?? ''
+        }));
+        setMessage(rows.length ? 'Loaded saved results. You can edit and save changes.' : 'No saved results found for this selection.');
+      } catch (err) {
+        setHasSavedResults(false);
+        setScores({});
+        setMessage(err.message || 'Unable to load saved results.');
+      } finally {
+        setLoadingSavedResults(false);
+      }
+    };
+
+    loadSavedResults();
+  }, [filters.studentId, filters.sessionId, filters.termId, lookups.subjects]);
 
   const totals = useMemo(() => {
     return Object.fromEntries(Object.entries(scores).map(([subjectId, row]) => {
@@ -41,6 +90,8 @@ export default function Results() {
 
   async function submit(event) {
     event.preventDefault();
+    setSaving(true);
+    setMessage('');
     const payload = {
       ...filters,
       scores: lookups.subjects.map((subject) => ({
@@ -50,13 +101,15 @@ export default function Results() {
         exam: scores[subject.id]?.exam || 0
       }))
     };
-    console.log('Submitting payload', payload);
     try {
       await api('/results/bulk', { method: 'POST', body: JSON.stringify(payload) });
+      setHasSavedResults(true);
       setMessage('Results saved successfully');
     } catch (err) {
       console.error(err);
       setMessage(err.message || 'Failed to save results');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -64,7 +117,7 @@ export default function Results() {
     <section>
       <header className="mb-5 flex items-start justify-between gap-4 max-[760px]:grid">
         <h1>Result Upload</h1>
-        <p>Enter 1st CA, 2nd CA, and examination scores for each subject.</p>
+        <p>{hasSavedResults ? 'Editing existing results for the selected student and term.' : 'Enter 1st CA, 2nd CA, and examination scores for each subject.'}</p>
       </header>
       <form className={`${panel} ${formGrid}`} onSubmit={submit}>
         <div className="grid grid-cols-4 gap-3 max-[1040px]:grid-cols-2 max-[760px]:grid-cols-1">
@@ -83,6 +136,9 @@ export default function Results() {
         <div className="mb-3 rounded-xl bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 sm:hidden">
           Use the responsive row view on mobile to enter scores.
         </div>
+        {loadingSavedResults && (
+          <p className="m-0 text-sm font-semibold text-slate-500">Loading saved results...</p>
+        )}
         <div className="responsive-table">
           <table>
             <thead><tr><th>Subject</th><th>1st CA</th><th>2nd CA</th><th>Exam</th><th>Total</th></tr></thead>
@@ -100,7 +156,10 @@ export default function Results() {
           </table>
         </div>
         {message && <p className="m-0 font-bold text-primary-dark">{message}</p>}
-        <button type="submit" className={primaryButton}><Save size={18} /> Save Results</button>
+        <button type="submit" className={primaryButton} disabled={saving || loadingSavedResults}>
+          {hasSavedResults ? <Edit3 size={18} /> : <Save size={18} />}
+          {saving ? 'Saving...' : (hasSavedResults ? 'Update Results' : 'Save Results')}
+        </button>
       </form>
     </section>
   );

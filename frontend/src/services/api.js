@@ -1,17 +1,23 @@
-﻿const runtime = (typeof window !== 'undefined' && window.__APP_CONFIG__) ? window.__APP_CONFIG__ : {};
+const runtime = (typeof window !== 'undefined' && window.__APP_CONFIG__) ? window.__APP_CONFIG__ : {};
 const API_URL = (runtime.VITE_API_URL || import.meta.env.VITE_API_URL || 'https://an-naheem-academy-result-backend.onrender.com/api').replace(/\/$/, '');
 const FILE_URL = (runtime.VITE_FILE_URL || import.meta.env.VITE_FILE_URL || '').replace(/\/$/, '');
 
 export function assetUrl(path) {
   if (!path) return '';
   if (/^https?:\/\//i.test(path)) return path;
-  if (FILE_URL) return `${FILE_URL}${path}`;
 
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (FILE_URL) {
+    if (FILE_URL.endsWith('/uploads') && cleanPath.startsWith('/uploads')) {
+      cleanPath = cleanPath.substring('/uploads'.length);
+    }
+    return `${FILE_URL}${cleanPath}`;
+  }
+
   try {
-    return `${new URL(API_URL, window.location.origin).origin}${normalizedPath}`;
+    return `${new URL(API_URL, window.location.origin).origin}${cleanPath}`;
   } catch {
-    return normalizedPath;
+    return cleanPath;
   }
 }
 
