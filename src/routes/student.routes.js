@@ -1,7 +1,4 @@
 import { Router } from 'express';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { Parent, serialize, Student } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -12,9 +9,6 @@ import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.j
 
 const router = Router();
 router.use(authenticate, requireRole('admin'));
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 
 const DEFAULT_PARENT_PASSWORD = '0823';
 
@@ -154,8 +148,6 @@ router.delete('/:id/passport', async (req, res, next) => {
         await deleteFromCloudinary(student.passport_path).catch((err) => {
           console.error('Failed to delete passport from Cloudinary:', err);
         });
-      } else {
-        await fs.unlink(path.join(uploadsDir, path.basename(student.passport_path))).catch(() => { });
       }
       student.passport_path = null;
       await student.save();
@@ -175,8 +167,6 @@ router.delete('/:id', async (req, res, next) => {
           await deleteFromCloudinary(student.passport_path).catch((err) => {
             console.error('Failed to delete passport from Cloudinary:', err);
           });
-        } else {
-          await fs.unlink(path.join(uploadsDir, path.basename(student.passport_path))).catch(() => { });
         }
       }
       if (student.parent_id) await Parent.findByIdAndDelete(student.parent_id);

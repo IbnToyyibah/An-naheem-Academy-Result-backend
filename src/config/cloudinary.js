@@ -46,7 +46,7 @@ export const uploadToCloudinary = (buffer, folder = 'passports') => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
-        resource_type: 'auto'
+        resource_type: 'image'
       },
       (error, result) => {
         if (error) return reject(error);
@@ -74,16 +74,20 @@ export const deleteFromCloudinary = async (urlOrPublicId) => {
   // Extract public ID if a URL is passed
   let publicId = urlOrPublicId;
   if (urlOrPublicId.includes('res.cloudinary.com')) {
-    // URL pattern: https://res.cloudinary.com/cloud_name/image/upload/v1234567/folder/public_id.jpg
-    const parts = urlOrPublicId.split('/');
-    const uploadIndex = parts.indexOf('upload');
-    if (uploadIndex !== -1 && parts.length > uploadIndex + 2) {
-      // Get all parts after the version tag (which starts with 'v')
-      const pathParts = parts.slice(uploadIndex + 2);
-      // Join back and strip file extension
-      const fullPath = pathParts.join('/');
-      const lastDotIndex = fullPath.lastIndexOf('.');
-      publicId = lastDotIndex !== -1 ? fullPath.substring(0, lastDotIndex) : fullPath;
+    // Robustly extract public ID by finding content after '/upload/' and stripping version & extension
+    const match = urlOrPublicId.match(/\/upload\/(?:v\d+\/)?([^.]+)/);
+    if (match && match[1]) {
+      publicId = match[1];
+    } else {
+      // Fallback extraction
+      const parts = urlOrPublicId.split('/');
+      const uploadIndex = parts.indexOf('upload');
+      if (uploadIndex !== -1 && parts.length > uploadIndex + 2) {
+        const pathParts = parts.slice(uploadIndex + 2);
+        const fullPath = pathParts.join('/');
+        const lastDotIndex = fullPath.lastIndexOf('.');
+        publicId = lastDotIndex !== -1 ? fullPath.substring(0, lastDotIndex) : fullPath;
+      }
     }
   }
 

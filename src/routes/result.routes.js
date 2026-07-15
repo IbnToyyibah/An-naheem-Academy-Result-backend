@@ -28,6 +28,9 @@ router.post('/bulk', async (req, res, next) => {
     if (!studentId || !sessionId || !termId) {
       return res.status(400).json({ message: 'Missing required studentId, sessionId or termId' });
     }
+    if (![studentId, sessionId, termId].every((value) => mongoose.Types.ObjectId.isValid(value))) {
+      return res.status(400).json({ message: 'Invalid studentId, sessionId or termId' });
+    }
     if (!Array.isArray(scores)) {
       return res.status(400).json({ message: 'Scores must be an array' });
     }
@@ -36,6 +39,10 @@ router.post('/bulk', async (req, res, next) => {
     const duplicates = subjectIds.filter((id, i) => subjectIds.indexOf(id) !== i);
     if (duplicates.length) {
       return res.status(400).json({ message: 'Duplicate subjectId entries detected', duplicates });
+    }
+    const invalidSubject = scores.find((raw) => !mongoose.Types.ObjectId.isValid(raw.subjectId ?? raw.subject_id));
+    if (invalidSubject) {
+      return res.status(400).json({ message: 'Invalid subjectId in score payload' });
     }
 
     // Prepare bulk operations
@@ -101,13 +108,23 @@ router.put('/:resultId', async (req, res, next) => {
       return res.status(404).json({ message: 'Result not found' });
     }
 
-    const { first_ca, second_ca, exam, attendance, principalRemark } = req.body;
+    const {
+      first_ca,
+      second_ca,
+      exam,
+      attendance,
+      attendance: attendanceSnake,
+      principalRemark,
+      principal_remark: principalRemarkSnake
+    } = req.body;
     const updateFields = {
       first_ca: first_ca ?? existing.first_ca,
       second_ca: second_ca ?? existing.second_ca,
       exam: exam ?? existing.exam,
-      attendance: attendance !== undefined ? (attendance === '' ? null : attendance) : existing.attendance,
-      principal_remark: principalRemark ?? existing.principal_remark
+      attendance: attendance !== undefined
+        ? (attendance === '' ? null : attendance)
+        : (attendanceSnake !== undefined ? (attendanceSnake === '' ? null : attendanceSnake) : existing.attendance),
+      principal_remark: principalRemark ?? principalRemarkSnake ?? existing.principal_remark
     };
 
     // Recalculate totals, grade, remark using the final scores
@@ -133,12 +150,19 @@ router.put('/:resultId', async (req, res, next) => {
 // Get results for a student (admin only). Populates subject, session and term for full info.
 router.get('/student/:studentId', async (req, res, next) => {
   try {
+    const { studentId } = req.params;
     const { sessionId, termId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ message: 'Invalid studentId' });
+    }
     if (!sessionId || !termId) {
       return res.status(400).json({ message: 'Missing sessionId or termId query parameters' });
     }
+    if (!mongoose.Types.ObjectId.isValid(sessionId) || !mongoose.Types.ObjectId.isValid(termId)) {
+      return res.status(400).json({ message: 'Invalid sessionId or termId query parameters' });
+    }
     const rows = await Result.find({
-      student_id: req.params.studentId,
+      student_id: studentId,
       session_id: sessionId,
       term_id: termId
     })

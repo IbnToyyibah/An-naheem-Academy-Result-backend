@@ -76,6 +76,12 @@ router.get('/profile', async (req, res, next) => {
 router.get('/results', async (req, res, next) => {
   try {
     const { sessionId, termId } = req.query;
+    if (!sessionId || !termId) {
+      return res.status(400).json({ message: 'Missing sessionId or termId query parameters' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(sessionId) || !mongoose.Types.ObjectId.isValid(termId)) {
+      return res.status(400).json({ message: 'Invalid sessionId or termId query parameters' });
+    }
     const rows = (await Result.find({
       student_id: req.user.studentId,
       session_id: new mongoose.Types.ObjectId(sessionId),
