@@ -1,21 +1,6 @@
-import path from 'path';
-import fs from 'fs';
 import multer from 'multer';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadDir = path.join(__dirname, '..', '..', 'uploads');
-
-fs.mkdirSync(uploadDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: uploadDir,
-  filename: (_req, file, cb) => {
-    const safeName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase()}`;
-    cb(null, safeName);
-  }
-});
+const storage = multer.memoryStorage();
 
 export const uploadPassport = multer({
   storage,
@@ -25,3 +10,4 @@ export const uploadPassport = multer({
     cb(new Error('Only JPG, JPEG, and PNG images are allowed'));
   }
 });
+
