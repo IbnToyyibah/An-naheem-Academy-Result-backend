@@ -65,7 +65,12 @@ const studentSchema = new mongoose.Schema({
   date_of_birth: { type: Date, default: null },
   class_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
   parent_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Parent' },
-  passport_path: { type: String, default: null }
+  passport_path: { type: String, default: null },
+  /**
+   * Date the next academic term begins for this student.
+   * Default: 21 September 2026 (UTC).
+   */
+  next_term_begin: { type: Date, default: new Date('2026-09-21T00:00:00Z') }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   toJSON: { virtuals: true },
