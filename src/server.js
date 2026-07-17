@@ -72,7 +72,7 @@ app.use('/api/parent', parentRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const port = Number(process.env.PORT || 5000);
+const port = Number(process.env.PORT || 5001);
 let reconnectTimer = null;
 
 async function connectWithRetry() {

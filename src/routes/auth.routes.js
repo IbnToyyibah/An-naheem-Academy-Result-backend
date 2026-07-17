@@ -81,7 +81,7 @@ router.post('/parent/login', async (req, res, next) => {
       'Digital Technology',
       'Physical and Health Education',
       'Home Economics',
-      'Arabic Language'
+
     ];
     const orderedSubjects = subjectOrder
       .map((name) => subjects.find((item) => item.subject_name === name))

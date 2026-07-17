@@ -24,13 +24,11 @@ router.get('/lookups', async (req, res, next) => {
       'English Language',
       'Intermediate Science',
       'Social and Citizenship Education',
-      'Islamic Religious Studies',
       'Business Studies',
       'Agricultural Science',
       'Digital Technology',
       'Physical and Health Education',
       'Home Economics',
-      'Arabic Language'
     ];
     const orderedSubjects = subjectOrder
       .map((name) => subjects.find((item) => item.subject_name === name))
@@ -45,7 +43,8 @@ router.get('/lookups', async (req, res, next) => {
           sessionId: latestResult.session_id?.id || latestResult.session_id?.toString?.(),
           termId: latestResult.term_id?.id || latestResult.term_id?.toString?.()
         }
-        : null
+        : null,
+      nextTermStart: "SEPTEMBER 21ST, 2026"
     });
   } catch (error) {
     next(error);
@@ -66,7 +65,8 @@ router.get('/profile', async (req, res, next) => {
       parent_name: profile?.parent_id?.name,
       parent_phone: profile?.parent_id?.phone,
       parent_email: profile?.parent_id?.email,
-      date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().slice(0, 10) : row.date_of_birth
+      date_of_birth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().slice(0, 10) : row.date_of_birth,
+      nextTermStart: "SEPTEMBER 21ST, 2026"
     });
   } catch (error) {
     next(error);
@@ -106,7 +106,8 @@ router.get('/results', async (req, res, next) => {
         position,
         attendance: rows[0]?.attendance || null,
         principalRemark: rows[0]?.principal_remark || null
-      }
+      },
+      nextTermStart: "SEPTEMBER 21ST, 2026"
     });
   } catch (error) {
     next(error);

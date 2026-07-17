@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Result } from '../config/db.js';
+import { Result, Student } from '../config/db.js';
 
 export function calculateGrade(total) {
   if (total >= 70) return { grade: 'A', remark: 'Excellent' };
@@ -26,6 +26,10 @@ export function normalizeScore(score) {
 export async function calculateStudentPosition(sessionId, termId, studentId) {
   if (!sessionId || !termId || !studentId) return 'Pending';
 
+  // Find the student's class so ranking is scoped to classmates only
+  const student = await Student.findById(studentId).select('class_id').lean();
+  if (!student?.class_id) return 'Pending';
+
   const results = await Result.aggregate([
     {
       $match: {
@@ -33,19 +37,38 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
         term_id: new mongoose.Types.ObjectId(termId)
       }
     },
+    // Join with students to filter by class
+    {
+      $lookup: {
+        from: 'students',
+        localField: 'student_id',
+        foreignField: '_id',
+        as: 'studentDoc'
+      }
+    },
+    { $unwind: '$studentDoc' },
+    { $match: { 'studentDoc.class_id': new mongoose.Types.ObjectId(student.class_id) } },
+    // Group by student and compute average
     {
       $group: {
         _id: '$student_id',
-        averageScore: { $avg: '$total' },
-        totalScore: { $sum: '$total' }
+        total: { $sum: '$total' },
+        subjectCount: { $sum: 1 }
       }
     },
     {
-      $sort: {
-        averageScore: -1,
-        totalScore: -1
+      $addFields: {
+        average: {
+          $cond: [
+            { $gt: ['$subjectCount', 0] },
+            { $divide: ['$total', '$subjectCount'] },
+            0
+          ]
+        }
       }
-    }
+    },
+    // Higher average = better rank
+    { $sort: { average: -1, _id: 1 } }
   ]);
 
   if (!results.length) return 'Pending';
@@ -53,13 +76,11 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
   let rank = 1;
   let currentPosition = 1;
   let lastAverage = null;
-  let lastTotal = null;
 
   for (const row of results) {
-    const averageScore = Number(row.averageScore.toFixed(2));
-    const totalScore = Number(row.totalScore);
+    const avg = Math.round((row.average ?? 0) * 100) / 100;
 
-    if (lastAverage !== null && (averageScore !== lastAverage || totalScore !== lastTotal)) {
+    if (lastAverage !== null && avg !== lastAverage) {
       rank = currentPosition;
     }
 
@@ -67,8 +88,7 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
       return rank;
     }
 
-    lastAverage = averageScore;
-    lastTotal = totalScore;
+    lastAverage = avg;
     currentPosition += 1;
   }
 
