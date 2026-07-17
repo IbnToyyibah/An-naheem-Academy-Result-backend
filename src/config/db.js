@@ -161,8 +161,7 @@ export async function seedLookups() {
       'Agricultural Science',
       'Digital Technology',
       'Physical and Health Education',
-      'Home Economics',
-      'Arabic Language'
+      'Home Economics'
     ].map((subject_name) =>
       Subject.updateOne({ subject_name }, { $setOnInsert: { subject_name } }, { upsert: true })
     ),

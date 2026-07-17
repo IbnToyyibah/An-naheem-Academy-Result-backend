@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Result, serialize } from '../config/db.js';
+import { Result, serialize, Student } from '../config/db.js';
+import { computeClassPositions } from '../utils/ranking.js';
 import mongoose from 'mongoose';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { normalizeScore } from '../utils/grading.js';
@@ -102,42 +103,54 @@ router.put('/:resultId', async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(resultId)) {
       return res.status(400).json({ message: 'Invalid resultId' });
     }
-    // Fetch existing result to preserve unchanged scores
+    // Fetch existing result
     const existing = await Result.findById(resultId);
     if (!existing) {
       return res.status(404).json({ message: 'Result not found' });
     }
 
+    // Normalise incoming payload (accept camelCase or snake_case)
     const {
       first_ca,
+      firstCa,
       second_ca,
+      secondCa,
       exam,
       attendance,
       attendance: attendanceSnake,
       principalRemark,
-      principal_remark: principalRemarkSnake
+      principal_remark: principalRemarkSnake,
     } = req.body;
-    const updateFields = {
-      first_ca: first_ca ?? existing.first_ca,
-      second_ca: second_ca ?? existing.second_ca,
-      exam: exam ?? existing.exam,
-      attendance: attendance !== undefined
-        ? (attendance === '' ? null : attendance)
-        : (attendanceSnake !== undefined ? (attendanceSnake === '' ? null : attendanceSnake) : existing.attendance),
-      principal_remark: principalRemark ?? principalRemarkSnake ?? existing.principal_remark
-    };
 
-    // Recalculate totals, grade, remark using the final scores
-    const normalized = normalizeScore({
-      firstCa: updateFields.first_ca,
-      secondCa: updateFields.second_ca,
-      exam: updateFields.exam
-    });
-    Object.assign(updateFields, {
+    // Build a clean score object for recalculation
+    const score = {
+      firstCa: first_ca ?? firstCa ?? existing.first_ca,
+      secondCa: second_ca ?? secondCa ?? existing.second_ca,
+      exam: exam ?? existing.exam,
+    };
+    const normalized = normalizeScore(score);
+
+    // Assemble the update object, preserving fields not supplied in the request
+    const updateFields = {
+      first_ca: score.firstCa,
+      second_ca: score.secondCa,
+      exam: score.exam,
+      attendance:
+        attendance !== undefined
+          ? attendance === ''
+            ? null
+            : attendance
+          : attendanceSnake !== undefined
+          ? attendanceSnake === ''
+            ? null
+            : attendanceSnake
+          : existing.attendance,
+      principal_remark:
+        principalRemark ?? principalRemarkSnake ?? existing.principal_remark,
       total: normalized.total,
       grade: normalized.grade,
-      remark: normalized.remark
-    });
+      remark: normalized.remark,
+    };
 
     const result = await Result.findByIdAndUpdate(resultId, { $set: updateFields }, { new: true });
     await logActivity('Admin', `Edited result #${resultId}`);
@@ -148,6 +161,28 @@ router.put('/:resultId', async (req, res, next) => {
 });
 
 // Get results for a student (admin only). Populates subject, session and term for full info.
+router.get('/class/:classId/positions', async (req, res, next) => {
+  try {
+    const { classId } = req.params;
+    const { sessionId, termId } = req.query;
+    if (!mongoose.Types.ObjectId.isValid(classId) || !mongoose.Types.ObjectId.isValid(sessionId) || !mongoose.Types.ObjectId.isValid(termId)) {
+      return res.status(400).json({ message: 'Invalid classId, sessionId or termId' });
+    }
+    const { positions, classSize } = await computeClassPositions(classId, sessionId, termId);
+    // map positions to include readable name
+    const formatted = positions.map(p => ({
+      studentId: p._id,
+      firstName: p.first_name,
+      lastName: p.last_name,
+      total: p.total,
+      position: p.position
+    }));
+    res.json({ classSize, positions: formatted });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/student/:studentId', async (req, res, next) => {
   try {
     const { studentId } = req.params;
@@ -177,8 +212,20 @@ router.get('/student/:studentId', async (req, res, next) => {
       session_name: row.session_id?.session_name,
       term_name: row.term_id?.term_name
     }));
-    serialized.sort((a, b) => (a.subject_name || '').localeCompare(b.subject_name || ''));
-    res.json(serialized);
+    // compute position within class
+    const student = await Student.findById(studentId);
+    let positionInfo = null;
+    if (student?.class_id) {
+      const { positions, classSize } = await computeClassPositions(student.class_id.toString(), sessionId, termId);
+      const thisPos = positions.find(p => p._id.toString() === studentId);
+      if (thisPos) {
+        positionInfo = { position: thisPos.position, classSize };
+      }
+    }
+    // attach position info to each result row (same for all rows)
+    const resultWithPos = serialized.map(r => ({ ...r, ...positionInfo }));
+    resultWithPos.sort((a, b) => (a.subject_name || '').localeCompare(b.subject_name || ''));
+    res.json(resultWithPos);
   } catch (error) {
     next(error);
   }

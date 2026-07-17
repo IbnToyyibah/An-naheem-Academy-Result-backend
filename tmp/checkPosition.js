@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { connectDb, Student, Session, Term } from './config/db.js';
-import { calculateStudentPosition } from './utils/grading.js';
+import { connectDb, Student, Session, Term } from '../src/config/db.js';
+import { calculateStudentPosition } from '../src/utils/grading.js';
 
 (async () => {
   try {

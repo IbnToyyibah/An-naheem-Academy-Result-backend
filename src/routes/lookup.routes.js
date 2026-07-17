@@ -28,7 +28,7 @@ function crudRoutes(table, column, label) {
           'Digital Technology',
           'Physical and Health Education',
           'Home Economics',
-          'Arabic Language'
+
         ];
         const subjects = await models[table].find();
         const ordered = subjectOrder
