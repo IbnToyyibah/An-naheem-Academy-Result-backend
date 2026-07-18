@@ -26,7 +26,7 @@ export function normalizeScore(score) {
 export async function calculateStudentPosition(sessionId, termId, studentId) {
   if (!sessionId || !termId || !studentId) return 'Pending';
 
-  // Scope ranking to the student's own class
+  // Scope ranking to the student's own class only
   const student = await Student.findById(studentId).select('class_id').lean();
   if (!student?.class_id) return 'Pending';
 
@@ -37,7 +37,7 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
         term_id: new mongoose.Types.ObjectId(termId)
       }
     },
-    // Filter to classmates
+    // Filter to classmates only
     {
       $lookup: {
         from: 'students',
@@ -48,43 +48,30 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
     },
     { $unwind: '$studentDoc' },
     { $match: { 'studentDoc.class_id': new mongoose.Types.ObjectId(student.class_id) } },
-    // Group: average per student
+    // Sum all subject totals per student
     {
       $group: {
         _id: '$student_id',
         total: { $sum: '$total' },
-        subjectCount: { $sum: 1 },
         admission_number: { $first: '$studentDoc.admission_number' }
       }
     },
-    {
-      $addFields: {
-        average: {
-          $cond: [
-            { $gt: ['$subjectCount', 0] },
-            { $divide: ['$total', '$subjectCount'] },
-            0
-          ]
-        }
-      }
-    },
-    // Same sort as computeClassPositions — highest average first, ties by admission number
-    { $sort: { average: -1, admission_number: 1 } }
+    // Highest total first; ties broken by admission number — identical to computeClassPositions
+    { $sort: { total: -1, admission_number: 1 } }
   ]);
 
   if (!results.length) return 'Pending';
 
   // Standard competition ranking — same logic as computeClassPositions
-  let lastAverage = null;
+  let lastTotal = null;
   let studentsAbove = 0;
 
   for (let i = 0; i < results.length; i++) {
     const row = results[i];
-    const avg = Math.round((row.average ?? 0) * 100) / 100;
 
-    if (avg !== lastAverage) {
-      studentsAbove = i; // number of students strictly above this group
-      lastAverage = avg;
+    if (row.total !== lastTotal) {
+      studentsAbove = i;
+      lastTotal = row.total;
     }
 
     if (row._id?.toString() === studentId.toString()) {

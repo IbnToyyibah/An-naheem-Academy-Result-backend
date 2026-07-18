@@ -2,9 +2,10 @@ import mongoose from 'mongoose';
 import { Result } from '../config/db.js';
 
 /**
- * Computes class positions ranked by average score (total / subjects sat).
- * Ties share the same rank. The next distinct average gets rank = (number of
- * students ranked above it + 1), i.e. standard competition / "1224" ranking.
+ * Computes class positions ranked by total score (sum of all subject totals).
+ * Students with the same total share the same rank.
+ * The next distinct total gets rank = (number of students ranked above + 1),
+ * i.e. standard competition / "1224" ranking.
  *
  * @param {string} classId   - ObjectId of the class
  * @param {string} sessionId - ObjectId of the session
@@ -28,7 +29,7 @@ export async function computeClassPositions(classId, sessionId, termId) {
         term_id: new mongoose.Types.ObjectId(termId)
       }
     },
-    // 2. Join with students so we can filter by class and get names
+    // 2. Join with students to filter by class and get names
     {
       $lookup: {
         from: 'students',
@@ -40,7 +41,7 @@ export async function computeClassPositions(classId, sessionId, termId) {
     { $unwind: '$student' },
     // 3. Keep only students in the requested class
     { $match: { 'student.class_id': new mongoose.Types.ObjectId(classId) } },
-    // 4. Group: sum totals and count subjects per student
+    // 4. Group: sum all subject totals per student
     {
       $group: {
         _id: '$student_id',
@@ -48,42 +49,24 @@ export async function computeClassPositions(classId, sessionId, termId) {
         subjectCount: { $sum: 1 },
         first_name: { $first: '$student.first_name' },
         last_name: { $first: '$student.last_name' },
-        // carry admission_number for stable tie-breaking
         admission_number: { $first: '$student.admission_number' }
       }
     },
-    // 5. Compute average
-    {
-      $addFields: {
-        average: {
-          $cond: [
-            { $gt: ['$subjectCount', 0] },
-            { $divide: ['$total', '$subjectCount'] },
-            0
-          ]
-        }
-      }
-    },
-    // 6. Sort: highest average first; ties broken by admission number (alphabetical)
-    { $sort: { average: -1, admission_number: 1 } }
+    // 5. Sort: highest total first; ties broken by admission number (stable, alphabetical)
+    { $sort: { total: -1, admission_number: 1 } }
   ]);
 
-  // Assign positions using standard competition ranking (1,1,1,4,…)
+  // Assign positions using standard competition ranking (1, 1, 3, 4, …)
   const positions = [];
-  let lastAverage = null;
-  let studentsAbove = 0; // number of students ranked strictly above the current group
+  let lastTotal = null;
+  let studentsAbove = 0;
 
   for (const entry of aggregation) {
-    // Round to 2 dp to absorb floating-point noise
-    const avg = Math.round(entry.average * 100) / 100;
-
-    if (avg !== lastAverage) {
-      // New average group — position = total students above this group + 1
-      studentsAbove = positions.length;
-      lastAverage = avg;
+    if (entry.total !== lastTotal) {
+      studentsAbove = positions.length; // students strictly above this group
+      lastTotal = entry.total;
     }
-
-    positions.push({ ...entry, average: avg, position: studentsAbove + 1 });
+    positions.push({ ...entry, position: studentsAbove + 1 });
   }
 
   return { positions, classSize: positions.length };

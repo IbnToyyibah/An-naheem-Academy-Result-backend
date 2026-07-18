@@ -75,13 +75,11 @@ router.post('/parent/login', async (req, res, next) => {
       'English Language',
       'Intermediate Science',
       'Social and Citizenship Education',
-      'Islamic Religious Studies',
       'Business Studies',
       'Agricultural Science',
       'Digital Technology',
       'Physical and Health Education',
       'Home Economics',
-
     ];
     const orderedSubjects = subjectOrder
       .map((name) => subjects.find((item) => item.subject_name === name))
