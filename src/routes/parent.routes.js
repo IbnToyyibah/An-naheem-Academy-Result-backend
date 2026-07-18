@@ -16,7 +16,7 @@ router.get('/lookups', async (req, res, next) => {
       .populate('term_id');
     const [sessions, terms, subjects] = await Promise.all([
       Session.find().sort({ session_name: -1 }),
-      Term.find().sort({ created_at: 1 }),
+      Term.find().sort({ is_current: -1, term_name: 1 }),
       Subject.find()
     ]);
     const subjectOrder = [

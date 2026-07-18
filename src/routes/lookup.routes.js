@@ -22,13 +22,11 @@ function crudRoutes(table, column, label) {
           'English Language',
           'Intermediate Science',
           'Social and Citizenship Education',
-          'Islamic Religious Studies',
           'Business Studies',
           'Agricultural Science',
           'Digital Technology',
           'Physical and Health Education',
           'Home Economics',
-
         ];
         const subjects = await models[table].find();
         const ordered = subjectOrder
@@ -38,7 +36,12 @@ function crudRoutes(table, column, label) {
         return res.json(serializeMany([...ordered, ...remaining]));
       }
 
-      const sort = table === 'sessions' ? { session_name: -1 } : { [column]: 1 };
+      // Terms: is_current term first, then alphabetical. Sessions: newest first.
+      const sort = table === 'sessions'
+        ? { session_name: -1 }
+        : table === 'terms'
+          ? { is_current: -1, term_name: 1 }
+          : { [column]: 1 };
       res.json(serializeMany(await models[table].find().sort(sort)));
     } catch (error) {
       next(error);

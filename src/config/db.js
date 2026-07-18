@@ -90,7 +90,8 @@ const sessionSchema = new mongoose.Schema({
 idVirtual(sessionSchema);
 
 const termSchema = new mongoose.Schema({
-  term_name: { type: String, required: true, unique: true, trim: true }
+  term_name: { type: String, required: true, unique: true, trim: true },
+  is_current: { type: Boolean, default: false }
 }, lookupOptions);
 idVirtual(termSchema);
 
@@ -175,7 +176,14 @@ export async function seedLookups() {
       { upsert: true }
     ),
     ...['First Term', 'Second Term', 'Third Term'].map((term_name) =>
-      Term.updateOne({ term_name }, { $setOnInsert: { term_name } }, { upsert: true })
+      Term.updateOne(
+        { term_name },
+        {
+          $setOnInsert: { term_name },
+          $set: { is_current: term_name === 'Third Term' }
+        },
+        { upsert: true }
+      )
     )
   ]);
 

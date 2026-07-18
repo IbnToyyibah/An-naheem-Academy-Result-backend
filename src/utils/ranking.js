@@ -26,10 +26,10 @@ export async function computeClassPositions(classId, sessionId, termId) {
     {
       $match: {
         session_id: new mongoose.Types.ObjectId(sessionId),
-        term_id: new mongoose.Types.ObjectId(termId)
+        term_id: new mongoose.Types.ObjectId(termId),
+        total: { $gt: 0 }   // exclude zero-score rows so blank entries don't distort totals
       }
     },
-    // 2. Join with students to filter by class and get names
     {
       $lookup: {
         from: 'students',

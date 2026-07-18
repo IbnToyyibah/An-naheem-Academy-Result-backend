@@ -34,10 +34,10 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
     {
       $match: {
         session_id: new mongoose.Types.ObjectId(sessionId),
-        term_id: new mongoose.Types.ObjectId(termId)
+        term_id: new mongoose.Types.ObjectId(termId),
+        total: { $gt: 0 }   // exclude zero-score rows
       }
     },
-    // Filter to classmates only
     {
       $lookup: {
         from: 'students',
