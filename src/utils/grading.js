@@ -26,7 +26,7 @@ export function normalizeScore(score) {
 export async function calculateStudentPosition(sessionId, termId, studentId) {
   if (!sessionId || !termId || !studentId) return 'Pending';
 
-  // Find the student's class so ranking is scoped to classmates only
+  // Scope ranking to the student's own class
   const student = await Student.findById(studentId).select('class_id').lean();
   if (!student?.class_id) return 'Pending';
 
@@ -37,7 +37,7 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
         term_id: new mongoose.Types.ObjectId(termId)
       }
     },
-    // Join with students to filter by class
+    // Filter to classmates
     {
       $lookup: {
         from: 'students',
@@ -48,12 +48,13 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
     },
     { $unwind: '$studentDoc' },
     { $match: { 'studentDoc.class_id': new mongoose.Types.ObjectId(student.class_id) } },
-    // Group by student and compute average
+    // Group: average per student
     {
       $group: {
         _id: '$student_id',
         total: { $sum: '$total' },
-        subjectCount: { $sum: 1 }
+        subjectCount: { $sum: 1 },
+        admission_number: { $first: '$studentDoc.admission_number' }
       }
     },
     {
@@ -67,29 +68,28 @@ export async function calculateStudentPosition(sessionId, termId, studentId) {
         }
       }
     },
-    // Higher average = better rank
-    { $sort: { average: -1, _id: 1 } }
+    // Same sort as computeClassPositions — highest average first, ties by admission number
+    { $sort: { average: -1, admission_number: 1 } }
   ]);
 
   if (!results.length) return 'Pending';
 
-  let rank = 1;
-  let currentPosition = 1;
+  // Standard competition ranking — same logic as computeClassPositions
   let lastAverage = null;
+  let studentsAbove = 0;
 
-  for (const row of results) {
+  for (let i = 0; i < results.length; i++) {
+    const row = results[i];
     const avg = Math.round((row.average ?? 0) * 100) / 100;
 
-    if (lastAverage !== null && avg !== lastAverage) {
-      rank = currentPosition;
+    if (avg !== lastAverage) {
+      studentsAbove = i; // number of students strictly above this group
+      lastAverage = avg;
     }
 
     if (row._id?.toString() === studentId.toString()) {
-      return rank;
+      return studentsAbove + 1;
     }
-
-    lastAverage = avg;
-    currentPosition += 1;
   }
 
   return 'Pending';

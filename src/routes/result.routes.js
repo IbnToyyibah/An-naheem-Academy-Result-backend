@@ -85,6 +85,30 @@ router.post('/bulk', async (req, res, next) => {
       await Result.bulkWrite(ops, { session });
     }
 
+    // Always update attendance and principal_remark on existing rows for this
+    // student/session/term — even when no score changes were submitted. This
+    // ensures that saving only the principal's remark or attendance is not lost.
+    const remarkValue = principalRemark ?? principalRemarkSnake ?? undefined;
+    const attendanceValue = (attendance ?? attendanceSnake ?? '') === '' ? null : (attendance ?? attendanceSnake);
+
+    const metaUpdateFields = {};
+    if (remarkValue !== undefined) metaUpdateFields.principal_remark = remarkValue;
+    if (attendance !== undefined || attendanceSnake !== undefined) {
+      metaUpdateFields.attendance = attendanceValue;
+    }
+
+    if (Object.keys(metaUpdateFields).length) {
+      await Result.updateMany(
+        {
+          student_id: new mongoose.Types.ObjectId(studentId),
+          session_id: new mongoose.Types.ObjectId(sessionId),
+          term_id: new mongoose.Types.ObjectId(termId)
+        },
+        { $set: metaUpdateFields },
+        { session }
+      );
+    }
+
     await logActivity('Admin', `Uploaded results for student #${studentId}`);
     await session.commitTransaction();
     res.json({ message: 'Results saved successfully' });
@@ -141,10 +165,10 @@ router.put('/:resultId', async (req, res, next) => {
             ? null
             : attendance
           : attendanceSnake !== undefined
-          ? attendanceSnake === ''
-            ? null
-            : attendanceSnake
-          : existing.attendance,
+            ? attendanceSnake === ''
+              ? null
+              : attendanceSnake
+            : existing.attendance,
       principal_remark:
         principalRemark ?? principalRemarkSnake ?? existing.principal_remark,
       total: normalized.total,
@@ -210,27 +234,27 @@ router.get('/student/:studentId', async (req, res, next) => {
       // Extract populated sub-doc IDs safely — lean() docs carry _id ObjectIds, not virtual `id`
       const subjectDoc = row.subject_id || {};
       const sessionDoc = row.session_id || {};
-      const termDoc    = row.term_id    || {};
+      const termDoc = row.term_id || {};
 
       return {
-        id:               row._id.toString(),
-        student_id:       row.student_id?.toString?.() ?? row.student_id,
-        subject_id:       subjectDoc._id?.toString?.() ?? subjectDoc.id ?? subjectDoc,
-        session_id:       sessionDoc._id?.toString?.() ?? sessionDoc.id ?? sessionDoc,
-        term_id:          termDoc._id?.toString?.()    ?? termDoc.id    ?? termDoc,
-        subject_name:     subjectDoc.subject_name ?? null,
-        session_name:     sessionDoc.session_name ?? null,
-        term_name:        termDoc.term_name       ?? null,
-        first_ca:         row.first_ca,
-        second_ca:        row.second_ca,
-        exam:             row.exam,
-        total:            row.total,
-        grade:            row.grade,
-        remark:           row.remark,
-        attendance:       row.attendance,
+        id: row._id.toString(),
+        student_id: row.student_id?.toString?.() ?? row.student_id,
+        subject_id: subjectDoc._id?.toString?.() ?? subjectDoc.id ?? subjectDoc,
+        session_id: sessionDoc._id?.toString?.() ?? sessionDoc.id ?? sessionDoc,
+        term_id: termDoc._id?.toString?.() ?? termDoc.id ?? termDoc,
+        subject_name: subjectDoc.subject_name ?? null,
+        session_name: sessionDoc.session_name ?? null,
+        term_name: termDoc.term_name ?? null,
+        first_ca: row.first_ca,
+        second_ca: row.second_ca,
+        exam: row.exam,
+        total: row.total,
+        grade: row.grade,
+        remark: row.remark,
+        attendance: row.attendance,
         principal_remark: row.principal_remark,
-        created_at:       row.created_at,
-        updated_at:       row.updated_at
+        created_at: row.created_at,
+        updated_at: row.updated_at
       };
     });
     // compute position within class
