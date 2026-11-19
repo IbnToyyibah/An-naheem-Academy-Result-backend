@@ -67,7 +67,7 @@ router.post('/parent/login', async (req, res, next) => {
     // prepare sessions/terms and latest result lookups
     const [sessions, terms, subjects] = await Promise.all([
       Session.find().sort({ session_name: -1 }),
-      Term.find().sort({ created_at: 1 }),
+      Term.find().sort({ is_current: -1, term_name: 1 }),
       Subject.find()
     ]);
     const subjectOrder = [
@@ -75,13 +75,11 @@ router.post('/parent/login', async (req, res, next) => {
       'English Language',
       'Intermediate Science',
       'Social and Citizenship Education',
-      'Islamic Religious Studies',
       'Business Studies',
       'Agricultural Science',
       'Digital Technology',
       'Physical and Health Education',
       'Home Economics',
-
     ];
     const orderedSubjects = subjectOrder
       .map((name) => subjects.find((item) => item.subject_name === name))

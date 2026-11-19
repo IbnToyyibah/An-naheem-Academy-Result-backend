@@ -57,7 +57,7 @@ const studentSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    match: [/^ANA\/JSS[1-3]\/\d{3}[a-z]$/, 'Admission number must look like ANA/JSS1/001a']
+    match: [/^ANA\/(?:JSS|SS)[1-3]\/\d{3}[a-z]$/i, 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a']
   },
   first_name: { type: String, required: true, trim: true },
   last_name: { type: String, required: true, trim: true },
@@ -90,7 +90,8 @@ const sessionSchema = new mongoose.Schema({
 idVirtual(sessionSchema);
 
 const termSchema = new mongoose.Schema({
-  term_name: { type: String, required: true, unique: true, trim: true }
+  term_name: { type: String, required: true, unique: true, trim: true },
+  is_current: { type: Boolean, default: false }
 }, lookupOptions);
 idVirtual(termSchema);
 
@@ -156,7 +157,6 @@ export async function seedLookups() {
       'English Language',
       'Intermediate Science',
       'Social and Citizenship Education',
-      'Islamic Religious Studies',
       'Business Studies',
       'Agricultural Science',
       'Digital Technology',
@@ -176,7 +176,14 @@ export async function seedLookups() {
       { upsert: true }
     ),
     ...['First Term', 'Second Term', 'Third Term'].map((term_name) =>
-      Term.updateOne({ term_name }, { $setOnInsert: { term_name } }, { upsert: true })
+      Term.updateOne(
+        { term_name },
+        {
+          $setOnInsert: { term_name },
+          $set: { is_current: term_name === 'Third Term' }
+        },
+        { upsert: true }
+      )
     )
   ]);
 

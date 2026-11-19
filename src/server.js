@@ -11,6 +11,7 @@ import studentRoutes from './routes/student.routes.js';
 import lookupRoutes from './routes/lookup.routes.js';
 import resultRoutes from './routes/result.routes.js';
 import parentRoutes from './routes/parent.routes.js';
+import publicRoutes from './routes/public.routes.js';
 import { errorHandler, notFound } from './middleware/errors.js';
 import { connectDb, getDbConnectionError, isDbConnected } from './config/db.js';
 
@@ -44,7 +45,22 @@ app.use(cors({
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+
+const requestLogFormat = process.env.REQUEST_LOG_FORMAT || 'tiny';
+const enableRequestLogging = process.env.DISABLE_REQUEST_LOGS !== 'true';
+
+app.use(morgan(requestLogFormat, {
+  skip: (req, res) => {
+    if (!enableRequestLogging) return true;
+    if (req.method === 'OPTIONS') return true;
+    if (req.path === '/health' || req.path === '/api/health') return true;
+    return false;
+  },
+  stream: {
+    write: (message) => process.stdout.write(message)
+  }
+}));
+
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -66,6 +82,7 @@ app.use('/api', (_req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api', lookupRoutes);
 app.use('/api/results', resultRoutes);
 app.use('/api/parent', parentRoutes);

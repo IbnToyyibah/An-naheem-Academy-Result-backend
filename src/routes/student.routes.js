@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { Parent, serialize, Student } from '../config/db.js';
+import mongoose from 'mongoose';
+import { Class, Parent, serialize, Student } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import { uploadPassport } from '../middleware/upload.js';
+import { uploadCsv, uploadPassport } from '../middleware/upload.js';
 import { logActivity } from '../utils/activity.js';
-import { isValidAdmissionNumber, normalizeAdmissionNumber } from '../utils/admission.js';
+import { isValidAdmissionNumber, normalizeAdmissionNumber, generateNextAdmissionNumber } from '../utils/admission.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary.js';
+import { parseStudentRows } from '../utils/csv.js';
 
 const router = Router();
 router.use(authenticate, requireRole('admin'));
@@ -54,6 +56,170 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Auto-generate the next sequential admission number based on class
+router.get('/next-admission-number', async (req, res, next) => {
+  try {
+    const { classId } = req.query;
+    if (!classId) {
+      return res.status(400).json({ message: 'Missing classId query parameter' });
+    }
+    const admissionNumber = await generateNextAdmissionNumber(classId);
+    res.json({ admissionNumber });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/upload-csv', uploadCsv.single('csvFile'), async (req, res, next) => {
+  try {
+    const rawCsv = req.file?.buffer?.toString('utf8');
+    if (!rawCsv?.trim()) {
+      return res.status(400).json({ message: 'Select a non-empty student CSV file to upload' });
+    }
+
+    let parsed;
+    try {
+      parsed = parseStudentRows(rawCsv);
+    } catch (error) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    const errors = [...parsed.errors];
+    const [classes, existingStudents] = await Promise.all([
+      Class.find(),
+      Student.find().select('admission_number')
+    ]);
+    const classesById = new Map(classes.map((item) => [item.id, item]));
+    const normalizeClassKey = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const classesByName = new Map(classes.map((item) => [normalizeClassKey(item.class_name), item]));
+    const fallbackClass = req.body.classId ? classesById.get(req.body.classId) : null;
+    const usedAdmissionNumbers = new Set(
+      existingStudents.map((student) => student.admission_number.toLowerCase())
+    );
+    const nextNumbersByClass = new Map();
+    const studentsToCreate = [];
+
+    for (const entry of parsed.entries) {
+      const classValue = entry.className || '';
+      const classDoc = classValue
+        ? ((mongoose.Types.ObjectId.isValid(classValue) && classesById.get(classValue))
+          || classesByName.get(normalizeClassKey(classValue)))
+        : fallbackClass;
+
+      if (!classDoc) {
+        errors.push(`Row ${entry.rowNumber}: Class "${classValue || '(not provided)'}" was not found. Include a valid class or select a default class.`);
+        continue;
+      }
+
+      let admissionNumber = entry.admissionNumber
+        ? normalizeAdmissionNumber(entry.admissionNumber)
+        : '';
+      if (!admissionNumber) {
+        let sequence = nextNumbersByClass.get(classDoc.id);
+        if (!sequence) {
+          const firstNumber = await generateNextAdmissionNumber(classDoc.id);
+          const match = firstNumber.match(/^ANA\/((?:JSS|SS)[1-3])\/(\d{3})[a-z]$/i);
+          if (!match) {
+            errors.push(`Row ${entry.rowNumber}: Could not generate an admission number for ${classDoc.class_name}`);
+            continue;
+          }
+          sequence = { code: match[1].toUpperCase(), number: Number(match[2]) };
+        }
+
+        do {
+          const padded = String(sequence.number).padStart(3, '0');
+          const letter = String.fromCharCode(97 + ((sequence.number - 1) % 26));
+          admissionNumber = `ANA/${sequence.code}/${padded}${letter}`;
+          sequence.number += 1;
+        } while (usedAdmissionNumbers.has(admissionNumber.toLowerCase()));
+        nextNumbersByClass.set(classDoc.id, sequence);
+      }
+
+      if (!isValidAdmissionNumber(admissionNumber)) {
+        errors.push(`Row ${entry.rowNumber}: Admission number "${entry.admissionNumber}" must look like ANA/JSS1/001a or ANA/JSS2/001a`);
+        continue;
+      }
+      if (usedAdmissionNumbers.has(admissionNumber.toLowerCase())) {
+        errors.push(`Row ${entry.rowNumber}: Admission number "${admissionNumber}" already exists`);
+        continue;
+      }
+      usedAdmissionNumbers.add(admissionNumber.toLowerCase());
+
+      let dateOfBirth = null;
+      if (entry.dateOfBirth) {
+        const parsedDate = new Date(`${entry.dateOfBirth}T00:00:00.000Z`);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(entry.dateOfBirth)
+          || Number.isNaN(parsedDate.getTime())
+          || parsedDate.toISOString().slice(0, 10) !== entry.dateOfBirth
+        ) {
+          errors.push(`Row ${entry.rowNumber}: Date of birth must use YYYY-MM-DD format`);
+          continue;
+        }
+        dateOfBirth = parsedDate;
+      }
+
+      studentsToCreate.push({
+        ...entry,
+        admissionNumber,
+        classId: classDoc.id,
+        dateOfBirth
+      });
+    }
+
+    if (errors.length) {
+      return res.status(400).json({
+        message: `Student CSV validation failed: ${errors.slice(0, 20).join('; ')}`,
+        errors,
+        totalErrors: errors.length
+      });
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const defaultPassword = await bcrypt.hash(DEFAULT_PARENT_PASSWORD, 12);
+      const parents = studentsToCreate.map((student) => new Parent({
+        name: student.parentName,
+        phone: student.parentPhone,
+        email: student.parentEmail,
+        password: defaultPassword
+      }));
+      await Parent.insertMany(parents, { session });
+
+      const studentDocs = studentsToCreate.map((student, index) => ({
+        admission_number: student.admissionNumber,
+        first_name: student.firstName,
+        last_name: student.lastName,
+        gender: student.gender,
+        date_of_birth: student.dateOfBirth,
+        class_id: student.classId,
+        parent_id: parents[index]._id
+      }));
+      await Student.insertMany(studentDocs, { session });
+      await logActivity('Admin', `Imported ${studentsToCreate.length} students from CSV`);
+      await session.commitTransaction();
+
+      res.status(201).json({
+        message: `Successfully imported ${studentsToCreate.length} student(s). Results can now be matched using each admission number.`,
+        studentsCount: studentsToCreate.length,
+        students: studentsToCreate.map(({ admissionNumber, firstName, lastName, classId }) => ({
+          admissionNumber,
+          name: `${firstName} ${lastName}`,
+          classId
+        }))
+      });
+    } catch (error) {
+      if (session.inTransaction()) await session.abortTransaction();
+      next(error);
+    } finally {
+      await session.endSession();
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const student = await Student.findById(req.params.id).populate('class_id').populate('parent_id');
@@ -67,9 +233,16 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', uploadPassport.single('passport'), async (req, res, next) => {
   try {
     const body = req.body;
-    const admissionNumber = normalizeAdmissionNumber(body.admission_number);
+    let admissionNumber = (body.admission_number || '').trim();
+
+    if (!admissionNumber && body.class_id) {
+      admissionNumber = await generateNextAdmissionNumber(body.class_id);
+    } else {
+      admissionNumber = normalizeAdmissionNumber(admissionNumber);
+    }
+
     if (!validateAdmissionNumber(admissionNumber)) {
-      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a' });
+      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a' });
     }
 
     let passportUrl = null;
@@ -96,7 +269,7 @@ router.post('/', uploadPassport.single('passport'), async (req, res, next) => {
       passport_path: passportUrl
     });
     await logActivity('Admin', `Added student ${admissionNumber}`);
-    res.status(201).json({ id: student.id, message: 'Student created' });
+    res.status(201).json({ id: student.id, message: 'Student created', admission_number: student.admission_number });
   } catch (error) {
     next(error);
   }
@@ -108,9 +281,17 @@ router.put('/:id', uploadPassport.single('passport'), async (req, res, next) => 
     if (!existing) return res.status(404).json({ message: 'Student not found' });
 
     const body = req.body;
-    const admissionNumber = normalizeAdmissionNumber(body.admission_number);
+    let admissionNumber = (body.admission_number || '').trim();
+    if (!admissionNumber && body.class_id && body.class_id !== existing.class_id?.toString()) {
+      admissionNumber = await generateNextAdmissionNumber(body.class_id);
+    } else if (admissionNumber) {
+      admissionNumber = normalizeAdmissionNumber(admissionNumber);
+    } else {
+      admissionNumber = existing.admission_number;
+    }
+
     if (!validateAdmissionNumber(admissionNumber)) {
-      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a' });
+      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a' });
     }
 
     let nextPassport = existing.passport_path;

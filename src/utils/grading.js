@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Result } from '../config/db.js';
+import { Result, Student } from '../config/db.js';
 
 export function calculateGrade(total) {
   if (total >= 70) return { grade: 'A', remark: 'Excellent' };
@@ -26,46 +26,57 @@ export function normalizeScore(score) {
 export async function calculateStudentPosition(sessionId, termId, studentId) {
   if (!sessionId || !termId || !studentId) return 'Pending';
 
+  // Scope ranking to the student's own class only
+  const student = await Student.findById(studentId).select('class_id').lean();
+  if (!student?.class_id) return 'Pending';
+
   const results = await Result.aggregate([
     {
       $match: {
         session_id: new mongoose.Types.ObjectId(sessionId),
-        term_id: new mongoose.Types.ObjectId(termId)
+        term_id: new mongoose.Types.ObjectId(termId),
+        total: { $gt: 0 }   // exclude zero-score rows
       }
     },
+    {
+      $lookup: {
+        from: 'students',
+        localField: 'student_id',
+        foreignField: '_id',
+        as: 'studentDoc'
+      }
+    },
+    { $unwind: '$studentDoc' },
+    { $match: { 'studentDoc.class_id': new mongoose.Types.ObjectId(student.class_id) } },
+    // Sum all subject totals per student
     {
       $group: {
         _id: '$student_id',
-        totalScore: { $sum: '$total' }
+        total: { $sum: '$total' },
+        admission_number: { $first: '$studentDoc.admission_number' }
       }
     },
-    {
-      $sort: {
-        totalScore: -1,
-        _id: 1
-      }
-    }
+    // Highest total first; ties broken by admission number — identical to computeClassPositions
+    { $sort: { total: -1, admission_number: 1 } }
   ]);
 
   if (!results.length) return 'Pending';
 
-  let rank = 1;
-  let currentPosition = 1;
+  // Standard competition ranking — same logic as computeClassPositions
   let lastTotal = null;
+  let studentsAbove = 0;
 
-  for (const row of results) {
-    const totalScore = Number(row.totalScore);
+  for (let i = 0; i < results.length; i++) {
+    const row = results[i];
 
-    if (lastTotal !== null && totalScore !== lastTotal) {
-      rank = currentPosition;
+    if (row.total !== lastTotal) {
+      studentsAbove = i;
+      lastTotal = row.total;
     }
 
     if (row._id?.toString() === studentId.toString()) {
-      return rank;
+      return studentsAbove + 1;
     }
-
-    lastTotal = totalScore;
-    currentPosition += 1;
   }
 
   return 'Pending';

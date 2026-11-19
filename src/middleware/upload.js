@@ -11,3 +11,19 @@ export const uploadPassport = multer({
   }
 });
 
+export const uploadCsv = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const isCsvMime = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'text/plain',
+      'application/csv',
+      'text/comma-separated-values'
+    ].includes(file.mimetype);
+    const isCsvExt = (file.originalname || '').toLowerCase().endsWith('.csv');
+    if (isCsvMime || isCsvExt) return cb(null, true);
+    cb(new Error('Only CSV files (.csv) are allowed'));
+  }
+});
