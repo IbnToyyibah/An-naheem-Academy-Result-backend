@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
 import { Class, Student } from '../config/db.js';
 
-export const admissionPattern = /^ANA\/(?:JSS|SS)[1-3]\/\d{3}[a-z]$/i;
+export const admissionPattern = /^ANA\/(?:JSS|SS)[1-3]\/\d{3,}$/i;
 
 export function normalizeAdmissionNumber(value = '') {
   const compact = String(value).trim().replace(/\\/g, '/');
-  const match = compact.match(/^ana[\s/-]*(jss|ss)\s*([1-3])[\s/-]*(\d{1,3})[\s/-]*([a-z])$/i);
+  const match = compact.match(/^ana[\s/-]*(jss|ss)\s*([1-3])[\s/-]*(\d+)[\s/-]*[a-z]?$/i);
 
   if (!match) return compact.replace(/\s+/g, '');
 
   const prefix = match[1].toUpperCase();
-  return `ANA/${prefix}${match[2]}/${match[3].padStart(3, '0')}${match[4].toLowerCase()}`;
+  return `ANA/${prefix}${match[2]}/${match[3].padStart(3, '0')}`;
 }
 
 export function isValidAdmissionNumber(value = '') {
@@ -24,7 +24,7 @@ export function admissionExactRegex(value = '') {
 
 /**
  * Automatically generate the next available sequential admission number
- * based on the class (e.g. JSS 1 -> ANA/JSS1/001a, JSS 2 -> ANA/JSS2/027a).
+ * based on the class (e.g. JSS 1 -> ANA/JSS1/001, JSS 2 -> ANA/JSS2/027).
  */
 export async function generateNextAdmissionNumber(classIdentifier) {
   let className = '';
@@ -45,7 +45,7 @@ export async function generateNextAdmissionNumber(classIdentifier) {
     : 'JSS1';
 
   // Find all existing admission numbers matching this class code
-  const regex = new RegExp(`^ANA\/${classCode}\/(\\d{3})([a-z])?$`, 'i');
+  const regex = new RegExp(`^ANA\/${classCode}\/(\\d{3,})([a-z])?$`, 'i');
   const students = await Student.find({ admission_number: regex }).select('admission_number');
 
   let maxNum = 0;
@@ -62,8 +62,7 @@ export async function generateNextAdmissionNumber(classIdentifier) {
   let nextNum = maxNum + 1;
   while (true) {
     const padded = String(nextNum).padStart(3, '0');
-    const letter = String.fromCharCode(97 + ((nextNum - 1) % 26));
-    const candidate = `ANA/${classCode}/${padded}${letter}`;
+    const candidate = `ANA/${classCode}/${padded}`;
 
     const exists = await Student.exists({ admission_number: candidate });
     if (!exists) {

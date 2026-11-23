@@ -53,6 +53,13 @@ function crudRoutes(table, column, label) {
       const value = req.body[column];
       const payload = { [column]: value };
       if (table === 'sessions') payload.is_current = Boolean(req.body.is_current);
+      if (table === 'subjects') {
+        const levels = req.body.class_levels || ['junior'];
+        if (!Array.isArray(levels) || !levels.length || levels.some((level) => !['junior', 'senior'].includes(level))) {
+          return res.status(400).json({ message: 'Select at least one valid subject class level' });
+        }
+        payload.class_levels = [...new Set(levels)];
+      }
       const result = await models[table].create(payload);
       await logActivity('Admin', `Created ${label}: ${value}`);
       res.status(201).json(serialize(result));
@@ -65,6 +72,13 @@ function crudRoutes(table, column, label) {
     try {
       const value = req.body[column];
       const payload = { [column]: value };
+      if (table === 'subjects' && req.body.class_levels !== undefined) {
+        const levels = req.body.class_levels;
+        if (!Array.isArray(levels) || !levels.length || levels.some((level) => !['junior', 'senior'].includes(level))) {
+          return res.status(400).json({ message: 'Select at least one valid subject class level' });
+        }
+        payload.class_levels = [...new Set(levels)];
+      }
       if (table === 'sessions') {
         payload.is_current = Boolean(req.body.is_current);
       }

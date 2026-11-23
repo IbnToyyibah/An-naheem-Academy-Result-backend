@@ -4,6 +4,7 @@
  * and supports BOM, auto-delimiter detection (comma, semicolon, tab),
  * both row-by-row and wide matrix format.
  */
+import { subjectSupportsClass } from './subject-level.js';
 
 /**
  * Parses raw CSV string or Buffer into array of string arrays.
@@ -413,7 +414,7 @@ function escapeCsvCell(val) {
 /**
  * Generates CSV string for template download.
  */
-export function generateCsvTemplate({ students = [], subjects = [], includeStudents = true, sessionName = '', termName = '' }) {
+export function generateCsvTemplate({ students = [], subjects = [], includeStudents = true, sessionName = '', termName = '', className = 'JSS 1' }) {
   const headers = [
     'admission_number',
     'student_name',
@@ -435,7 +436,7 @@ export function generateCsvTemplate({ students = [], subjects = [], includeStude
       const name = `${student.first_name || ''} ${student.last_name || ''}`.trim();
       const className = student.class_id?.class_name || student.class_name || '';
 
-      subjects.forEach((subject) => {
+      subjects.filter((subject) => subjectSupportsClass(subject, className)).forEach((subject) => {
         const subName = subject.subject_name;
         lines.push([
           escapeCsvCell(adm),
@@ -451,42 +452,22 @@ export function generateCsvTemplate({ students = [], subjects = [], includeStude
       });
     });
   } else {
-    // Provide sample rows
-    lines.push([
-      'ANA/JSS1/001a',
-      'Bashar Muhd',
-      'JSS 1',
-      'Mathematics',
-      '18',
-      '17',
-      '50',
-      '95',
-      'Outstanding academic performance'
-    ].map(escapeCsvCell).join(','));
+    const classCodeMatch = String(className).match(/^(JSS|SS)\s*([1-3])$/i);
+    const classCode = classCodeMatch ? `${classCodeMatch[1].toUpperCase()}${classCodeMatch[2]}` : 'JSS1';
 
-    lines.push([
-      'ANA/JSS1/001a',
-      'Bashar Muhd',
-      'JSS 1',
-      'English Language',
-      '16',
-      '15',
-      '48',
-      '95',
-      'Outstanding academic performance'
-    ].map(escapeCsvCell).join(','));
-
-    lines.push([
-      'ANA/JSS1/002b',
-      'Yusuf Abdullahi',
-      'JSS 1',
-      'Mathematics',
-      '14',
-      '15',
-      '42',
-      '88',
-      'Good effort, keep it up'
-    ].map(escapeCsvCell).join(','));
+    subjects.filter((subject) => subjectSupportsClass(subject, className)).forEach((subject) => {
+      lines.push([
+        `ANA/${classCode}/001`,
+        'Sample Student',
+        className,
+        subject.subject_name,
+        '',
+        '',
+        '',
+        '',
+        ''
+      ].map(escapeCsvCell).join(','));
+    });
   }
 
   return lines.join('\r\n');
@@ -648,7 +629,7 @@ export function generateStudentCsvTemplate({ classes = [], includeSamples = true
       'Atofarati',
       class1,
       'Male',
-      'ANA/JSS1/001a',
+      'ANA/JSS1/001',
       '08012345678',
       'parent1@example.com'
     ].map(escapeCsvCell).join(','));
@@ -658,7 +639,7 @@ export function generateStudentCsvTemplate({ classes = [], includeSamples = true
       'Abdullahi',
       class1,
       'Male',
-      'ANA/JSS1/002b',
+      'ANA/JSS1/002',
       '08023456789',
       'parent2@example.com'
     ].map(escapeCsvCell).join(','));

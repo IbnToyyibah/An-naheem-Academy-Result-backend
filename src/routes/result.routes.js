@@ -7,6 +7,7 @@ import { uploadCsv } from '../middleware/upload.js';
 import { normalizeScore } from '../utils/grading.js';
 import { logActivity } from '../utils/activity.js';
 import { normalizeAdmissionNumber } from '../utils/admission.js';
+import { subjectSupportsClass } from '../utils/subject-level.js';
 import { parseResultsFromCsv, generateCsvTemplate } from '../utils/csv.js';
 
 const router = Router();
@@ -69,6 +70,7 @@ router.get('/csv-template', async (req, res, next) => {
 
     let students = [];
     let subjects = [];
+    let className = 'JSS 1';
 
     if (shouldIncludeStudents) {
       const studentFilter = classId && mongoose.Types.ObjectId.isValid(classId) ? { class_id: classId } : {};
@@ -76,13 +78,18 @@ router.get('/csv-template', async (req, res, next) => {
         .populate('class_id')
         .sort({ admission_number: 1 });
     }
+    if (classId && mongoose.Types.ObjectId.isValid(classId)) {
+      const selectedClass = await Class.findById(classId).select('class_name');
+      className = selectedClass?.class_name || className;
+    }
 
     subjects = await Subject.find().sort({ subject_name: 1 });
 
     const csvContent = generateCsvTemplate({
       students,
       subjects,
-      includeStudents: shouldIncludeStudents
+      includeStudents: shouldIncludeStudents,
+      className
     });
 
     const filename = shouldIncludeStudents ? 'results_template_with_students.csv' : 'results_upload_sample.csv';
@@ -223,7 +230,14 @@ router.post('/upload-csv', uploadCsv.single('csvFile'), async (req, res, next) =
       }
 
       if (!matchedSubject) {
-        validationErrors.push(`Row ${rowNum}: Subject "${entry.subject}" was not recognized. Available subjects: ${allSubjects.map(s => s.subject_name).join(', ')}.`);
+        const applicableSubjects = allSubjects
+          .filter((subject) => subjectSupportsClass(subject, studentDoc.class_id?.class_name))
+          .map((subject) => subject.subject_name);
+        validationErrors.push(`Row ${rowNum}: Subject "${entry.subject}" was not recognized. Available subjects for ${studentDoc.class_id?.class_name || 'this class'}: ${applicableSubjects.join(', ')}.`);
+        continue;
+      }
+      if (!subjectSupportsClass(matchedSubject, studentDoc.class_id?.class_name)) {
+        validationErrors.push(`Row ${rowNum}: Subject "${matchedSubject.subject_name}" is not assigned to ${studentDoc.class_id?.class_name || 'this class'}.`);
         continue;
       }
 
@@ -400,7 +414,7 @@ router.post('/bulk', async (req, res, next) => {
       return res.status(400).json({ message: 'Scores must be an array' });
     }
     // Detect duplicate subjectIds in the payload
-    const subjectIds = scores.map(s => s.subjectId?.toString()).filter(Boolean);
+    const subjectIds = scores.map((score) => String((score.subjectId ?? score.subject_id) || '')).filter(Boolean);
     const duplicates = subjectIds.filter((id, i) => subjectIds.indexOf(id) !== i);
     if (duplicates.length) {
       return res.status(400).json({ message: 'Duplicate subjectId entries detected', duplicates });
@@ -408,6 +422,25 @@ router.post('/bulk', async (req, res, next) => {
     const invalidSubject = scores.find((raw) => !mongoose.Types.ObjectId.isValid(raw.subjectId ?? raw.subject_id));
     if (invalidSubject) {
       return res.status(400).json({ message: 'Invalid subjectId in score payload' });
+    }
+
+    const student = await Student.findById(studentId).populate('class_id');
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const requestedSubjectIds = [...new Set(scores.map((raw) => String(raw.subjectId ?? raw.subject_id)))];
+    const requestedSubjects = await Subject.find({ _id: { $in: requestedSubjectIds } });
+    if (requestedSubjects.length !== requestedSubjectIds.length) {
+      return res.status(400).json({ message: 'One or more selected subjects could not be found' });
+    }
+    const unavailableSubject = requestedSubjects.find(
+      (subject) => !subjectSupportsClass(subject, student.class_id?.class_name)
+    );
+    if (unavailableSubject) {
+      return res.status(400).json({
+        message: `${unavailableSubject.subject_name} is not assigned to ${student.class_id?.class_name || 'this class'}`
+      });
     }
 
     // Prepare bulk operations

@@ -94,7 +94,7 @@ router.post('/upload-csv', uploadCsv.single('csvFile'), async (req, res, next) =
     const classesByName = new Map(classes.map((item) => [normalizeClassKey(item.class_name), item]));
     const fallbackClass = req.body.classId ? classesById.get(req.body.classId) : null;
     const usedAdmissionNumbers = new Set(
-      existingStudents.map((student) => student.admission_number.toLowerCase())
+      existingStudents.map((student) => normalizeAdmissionNumber(student.admission_number).toLowerCase())
     );
     const nextNumbersByClass = new Map();
     const studentsToCreate = [];
@@ -118,7 +118,7 @@ router.post('/upload-csv', uploadCsv.single('csvFile'), async (req, res, next) =
         let sequence = nextNumbersByClass.get(classDoc.id);
         if (!sequence) {
           const firstNumber = await generateNextAdmissionNumber(classDoc.id);
-          const match = firstNumber.match(/^ANA\/((?:JSS|SS)[1-3])\/(\d{3})[a-z]$/i);
+          const match = firstNumber.match(/^ANA\/((?:JSS|SS)[1-3])\/(\d{3,})$/i);
           if (!match) {
             errors.push(`Row ${entry.rowNumber}: Could not generate an admission number for ${classDoc.class_name}`);
             continue;
@@ -128,15 +128,14 @@ router.post('/upload-csv', uploadCsv.single('csvFile'), async (req, res, next) =
 
         do {
           const padded = String(sequence.number).padStart(3, '0');
-          const letter = String.fromCharCode(97 + ((sequence.number - 1) % 26));
-          admissionNumber = `ANA/${sequence.code}/${padded}${letter}`;
+          admissionNumber = `ANA/${sequence.code}/${padded}`;
           sequence.number += 1;
         } while (usedAdmissionNumbers.has(admissionNumber.toLowerCase()));
         nextNumbersByClass.set(classDoc.id, sequence);
       }
 
       if (!isValidAdmissionNumber(admissionNumber)) {
-        errors.push(`Row ${entry.rowNumber}: Admission number "${entry.admissionNumber}" must look like ANA/JSS1/001a or ANA/JSS2/001a`);
+        errors.push(`Row ${entry.rowNumber}: Admission number "${entry.admissionNumber}" must look like ANA/JSS1/001 or ANA/JSS2/001`);
         continue;
       }
       if (usedAdmissionNumbers.has(admissionNumber.toLowerCase())) {
@@ -242,7 +241,7 @@ router.post('/', uploadPassport.single('passport'), async (req, res, next) => {
     }
 
     if (!validateAdmissionNumber(admissionNumber)) {
-      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a' });
+      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001 or ANA/JSS2/001' });
     }
 
     let passportUrl = null;
@@ -291,7 +290,7 @@ router.put('/:id', uploadPassport.single('passport'), async (req, res, next) => 
     }
 
     if (!validateAdmissionNumber(admissionNumber)) {
-      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a' });
+      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001 or ANA/JSS2/001' });
     }
 
     let nextPassport = existing.passport_path;

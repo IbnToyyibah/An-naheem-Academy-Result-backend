@@ -4,6 +4,7 @@ import { Parent, Student, User, Result, Session, Term, Subject, serialize, seria
 import { authenticate, requireRole, signToken } from '../middleware/auth.js';
 import { admissionExactRegex, isValidAdmissionNumber, normalizeAdmissionNumber } from '../utils/admission.js';
 import { normalizeScore, calculateStudentPosition } from '../utils/grading.js';
+import { subjectSupportsClass } from '../utils/subject-level.js';
 
 const router = Router();
 const DEFAULT_PARENT_PASSWORD = '0823';
@@ -33,7 +34,7 @@ router.post('/parent/login', async (req, res, next) => {
 
     const normalizedAdmissionNumber = normalizeAdmissionNumber(admissionNumber);
     if (!isValidAdmissionNumber(normalizedAdmissionNumber)) {
-      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001a' });
+      return res.status(400).json({ message: 'Admission number must look like ANA/JSS1/001' });
     }
 
     const student = await Student.findOne({ admission_number: admissionExactRegex(normalizedAdmissionNumber) })
@@ -143,7 +144,10 @@ router.post('/parent/login', async (req, res, next) => {
         lookups: {
           sessions: serializeMany(sessions),
           terms: serializeMany(terms),
-          subjects: serializeMany([...orderedSubjects, ...remainingSubjects]),
+          subjects: serializeMany(
+            [...orderedSubjects, ...remainingSubjects]
+              .filter((subject) => subjectSupportsClass(subject, student.class_id?.class_name))
+          ),
           latestResult: latestResult
             ? { sessionId: latestSessionId, termId: latestTermId }
             : null

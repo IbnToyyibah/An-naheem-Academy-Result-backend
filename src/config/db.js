@@ -57,7 +57,7 @@ const studentSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    match: [/^ANA\/(?:JSS|SS)[1-3]\/\d{3}[a-z]$/i, 'Admission number must look like ANA/JSS1/001a or ANA/JSS2/001a']
+    match: [/^ANA\/(?:JSS|SS)[1-3]\/\d{3,}[a-z]?$/i, 'Admission number must look like ANA/JSS1/001 or ANA/JSS2/001']
   },
   first_name: { type: String, required: true, trim: true },
   last_name: { type: String, required: true, trim: true },
@@ -79,7 +79,11 @@ const studentSchema = new mongoose.Schema({
 idVirtual(studentSchema);
 
 const subjectSchema = new mongoose.Schema({
-  subject_name: { type: String, required: true, unique: true, trim: true }
+  subject_name: { type: String, required: true, unique: true, trim: true },
+  class_levels: {
+    type: [{ type: String, enum: ['junior', 'senior'] }],
+    default: ['junior']
+  }
 }, lookupOptions);
 idVirtual(subjectSchema);
 
@@ -148,22 +152,56 @@ export function serializeMany(docs) {
 }
 
 export async function seedLookups() {
+  const juniorSubjects = [
+    'Mathematics',
+    'English Language',
+    'Intermediate Science',
+    'Social and Citizenship Education',
+    'Business Studies',
+    'Agricultural Science',
+    'Digital Technology',
+    'Physical and Health Education',
+    'Home Economics'
+  ];
+  const seniorSubjects = [
+    'English Language',
+    'Mathematics',
+    'Biology',
+    'Chemistry',
+    'Physics',
+    'Further Mathematics',
+    'Agricultural Science',
+    'Commerce',
+    'Accounting',
+    'Economics',
+    'Financial Accounting',
+    'Marketing',
+    'Literature in English',
+    'Government',
+    'Yoruba'
+  ];
+  const subjectLevels = new Map();
+  juniorSubjects.forEach((name) => subjectLevels.set(name, ['junior']));
+  seniorSubjects.forEach((name) => {
+    const levels = subjectLevels.get(name) || [];
+    subjectLevels.set(name, [...levels, 'senior']);
+  });
+
+  await Subject.updateMany(
+    { class_levels: { $exists: false } },
+    { $set: { class_levels: ['junior'] } }
+  );
+
   await Promise.all([
-    ...['JSS 1', 'JSS 2', 'JSS 3'].map((class_name) =>
+    ...['JSS 1', 'JSS 2', 'JSS 3', 'SS 1', 'SS 2', 'SS 3'].map((class_name) =>
       Class.updateOne({ class_name }, { $setOnInsert: { class_name } }, { upsert: true })
     ),
-    ...[
-      'Mathematics',
-      'English Language',
-      'Intermediate Science',
-      'Social and Citizenship Education',
-      'Business Studies',
-      'Agricultural Science',
-      'Digital Technology',
-      'Physical and Health Education',
-      'Home Economics'
-    ].map((subject_name) =>
-      Subject.updateOne({ subject_name }, { $setOnInsert: { subject_name } }, { upsert: true })
+    ...subjectLevels.entries().map(([subject_name, class_levels]) =>
+      Subject.updateOne(
+        { subject_name },
+        { $set: { class_levels }, $setOnInsert: { subject_name } },
+        { upsert: true }
+      )
     ),
     Session.updateOne(
       { session_name: '2025/2026' },
@@ -195,11 +233,11 @@ export async function seedLookups() {
   );
 }
 
-export async function connectDb() {
+export async function connectDb({ seed = true } = {}) {
   try {
     connectionError = null;
     await mongoose.connect(mongoUri, options);
-    await seedLookups();
+    if (seed) await seedLookups();
     console.log(`MongoDB connected: ${mongoose.connection.name}`);
   } catch (error) {
     connectionError = error;

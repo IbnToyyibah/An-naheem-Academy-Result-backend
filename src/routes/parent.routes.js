@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Result, serialize, serializeMany, Session, Student, Term, Subject } from '../config/db.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { calculateStudentPosition } from '../utils/grading.js';
+import { subjectSupportsClass } from '../utils/subject-level.js';
 
 const router = Router();
 router.use(authenticate);
@@ -14,10 +15,11 @@ router.get('/lookups', async (req, res, next) => {
       .sort({ updated_at: -1, created_at: -1 })
       .populate('session_id')
       .populate('term_id');
-    const [sessions, terms, subjects] = await Promise.all([
+    const [sessions, terms, subjects, student] = await Promise.all([
       Session.find().sort({ session_name: -1 }),
       Term.find().sort({ is_current: -1, term_name: 1 }),
-      Subject.find()
+      Subject.find(),
+      Student.findById(req.user.studentId).populate('class_id')
     ]);
     const subjectOrder = [
       'Mathematics',
@@ -37,7 +39,10 @@ router.get('/lookups', async (req, res, next) => {
     res.json({
       sessions: serializeMany(sessions),
       terms: serializeMany(terms),
-      subjects: serializeMany([...orderedSubjects, ...remainingSubjects]),
+      subjects: serializeMany(
+        [...orderedSubjects, ...remainingSubjects]
+          .filter((subject) => subjectSupportsClass(subject, student?.class_id?.class_name))
+      ),
       latestResult: latestResult
         ? {
           sessionId: latestResult.session_id?.id || latestResult.session_id?.toString?.(),
